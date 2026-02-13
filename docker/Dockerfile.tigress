@@ -1,0 +1,26 @@
+FROM psec/base:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+COPY vendor/tigress_3.3.3-1_any.deb.zip /tmp/tigress.deb.zip
+
+RUN set -eux; \
+    mkdir -p /tmp/tigress_pkg /tmp/tigress_repack; \
+    unzip -q /tmp/tigress.deb.zip -d /tmp/tigress_pkg; \
+    DEB_PATH="$(find /tmp/tigress_pkg -maxdepth 2 -type f -name '*.deb' | head -n 1)"; \
+    test -n "$DEB_PATH"; \
+    echo "Original deb: $DEB_PATH"; \
+    dpkg-deb -I "$DEB_PATH" | sed -n '1,80p'; \
+    \
+    # Repack: any -> amd64
+    dpkg-deb -R "$DEB_PATH" /tmp/tigress_repack; \
+    sed -i 's/^Architecture: .*/Architecture: amd64/' /tmp/tigress_repack/DEBIAN/control; \
+    dpkg-deb -b /tmp/tigress_repack /tmp/tigress_fixed_amd64.deb; \
+    echo "Fixed deb info:"; \
+    dpkg-deb -I /tmp/tigress_fixed_amd64.deb | sed -n '1,80p'; \
+    \
+    dpkg -i /tmp/tigress_fixed_amd64.deb; \
+    \
+    rm -rf /tmp/tigress_pkg /tmp/tigress_repack /tmp/tigress.deb.zip /tmp/tigress_fixed_amd64.deb; \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work

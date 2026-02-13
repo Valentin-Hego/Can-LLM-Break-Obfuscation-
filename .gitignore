@@ -1,0 +1,7 @@
+outputs/
+*.o
+*.out
+*.log
+*.tar
+*.tar.gz
+*.zip
