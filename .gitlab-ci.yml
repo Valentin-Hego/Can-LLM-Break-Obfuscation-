@@ -6,6 +6,7 @@ obfuscation_pipeline:
   tags:
     - shell
   script:
+    - apt install -y docker.io
     - docker info
     - ./scripts/run_all.sh
   artifacts:
