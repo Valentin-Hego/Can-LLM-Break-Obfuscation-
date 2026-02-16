@@ -6,6 +6,8 @@ obfuscation_pipeline:
   tags:
     - docker
   image: docker:27
+  variables:
+    DOCKER_HOST: ""
   script:
     - docker info
     - ./scripts/run_all.sh
