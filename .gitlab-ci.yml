@@ -4,9 +4,8 @@ stages:
 obfuscation_pipeline:
   stage: obfuscate
   tags:
-    - shell
+    - psec-vm
   script:
-    - apt install -y docker.io
     - docker info
     - ./scripts/run_all.sh
   artifacts:
