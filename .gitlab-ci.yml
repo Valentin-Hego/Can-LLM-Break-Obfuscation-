@@ -5,6 +5,7 @@ obfuscation_pipeline:
   stage: obfuscate
   tags:
     - docker
+  image: docker:27
   script:
     - docker info
     - ./scripts/run_all.sh
