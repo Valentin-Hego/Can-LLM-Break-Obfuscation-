@@ -4,11 +4,7 @@ stages:
 obfuscation_pipeline:
   stage: obfuscate
   tags:
-    - docker
-  image: ubuntu:22.04
-  before_script:
-    - apt update
-    - apt install -y docker.io
+    - shell
   script:
     - docker info
     - ./scripts/run_all.sh
