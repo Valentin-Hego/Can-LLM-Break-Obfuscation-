@@ -1,18 +1,15 @@
 stages:
-  - debug
+  - obfuscate
 
-debug_env:
-  stage: debug
+obfuscation_pipeline:
+  stage: obfuscate
+  tags:
+    - docker
   script:
-    - echo "=== WHOAMI ==="
-    - whoami
-    - echo "=== PATH ==="
-    - echo $PATH
-    - echo "=== GCC ==="
-    - which gcc || echo "gcc not found"
-    - gcc --version || true
-    - echo "=== DOCKER ==="
-    - which docker || echo "docker not found"
-    - echo "=== MAKE ==="
-    - which make || echo "make not found"
+    - docker info
+    - ./scripts/run_all.sh
+  artifacts:
+    when: always
+    paths:
+      - outputs/
 
