@@ -16,7 +16,6 @@ docker run --rm \
   bash -c "
     tigress \
       --Environment=x86_64:Linux:Gcc:4.6 \
-      --gcc=/usr/bin/gcc-12 \
       --Transform=InitOpaque --Functions=main \
       --Transform=EncodeLiterals --Functions=main \
       --out=outputs/tigress/hello_obf.c \
