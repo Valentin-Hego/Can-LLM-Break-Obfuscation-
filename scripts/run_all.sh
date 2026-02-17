@@ -12,8 +12,15 @@ gcc -O0 -g samples/hello.c -o outputs/baseline/hello
 echo "[+] Tigress"
 
 TMPFILE=outputs/hello_for_tigress.c
-echo '#define _POSIX_C_SOURCE 199309L' > $TMPFILE
-echo '#include <time.h>' >> $TMPFILE
+
+cat > $TMPFILE <<'EOF'
+#define _POSIX_C_SOURCE 199309L
+#include <time.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <unistd.h>
+EOF
+
 cat samples/hello.c >> $TMPFILE
 
 docker run --rm \
@@ -28,6 +35,7 @@ docker run --rm \
             --Functions=main \
         --out=outputs/tigress/hello_obf.c \
         $TMPFILE
+
 
 docker run --rm \
   -v "$PWD:/work" -w /work \
