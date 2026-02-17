@@ -1,25 +1,25 @@
-FROM psec/base:22.04
-ENV DEBIAN_FRONTEND=noninteractive
+FROM ubuntu:22.04
 
-# Dépendances nécessaires
-RUN apt-get update && apt-get install -y \
+RUN dpkg --add-architecture i386 && \
+    apt update && apt install -y \
     build-essential \
-    clang \
-    cmake \
-    ninja-build \
-    python3 \
     git \
-    && rm -rf /var/lib/apt/lists/*
+    clang \
+    llvm \
+    cmake \
+    python3 \
+    libc6-dev-i386 \
+    gcc-multilib \
+    bison \
+    wget
 
 WORKDIR /opt
-
 RUN git clone https://github.com/xoreaxeaxeax/movfuscator.git
 
 WORKDIR /opt/movfuscator
 
-RUN chmod +x build.sh && ./build.sh
-
+RUN chmod +x build.sh install.sh && \
+    ./build.sh
 
 ENV PATH="/opt/movfuscator/build:${PATH}"
 
-WORKDIR /work
