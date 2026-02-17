@@ -16,6 +16,7 @@ docker run --rm \
   tigress --Environment=x86_64:Linux:Gcc:4.6 \
         --Transform=InitOpaque \
             --InitOpaqueStructs=list,array,env,input \
+	--Functions=main \
         --Transform=InitEntropy \
         --Transform=EncodeLiterals --Functions=main \
         --out=outputs/tigress/hello_obf.c \
