@@ -7,6 +7,7 @@ obfuscation:
     - automatisation
   script:
     - docker info
+    - gcc --version
     - ./scripts/run_all.sh
   artifacts:
     when: always
