@@ -4,7 +4,7 @@ stages:
 obfuscation:
   stage: obfuscate
   tags:
-    - psec-vm
+    - automatisation
   script:
     - docker info
     - ./scripts/run_all.sh
