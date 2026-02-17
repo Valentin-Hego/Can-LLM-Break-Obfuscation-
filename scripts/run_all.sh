@@ -9,26 +9,27 @@ mkdir -p outputs/movfuscator
 echo "[+] Baseline"
 gcc -O0 -g samples/hello.c -o outputs/baseline/hello
 
+echo "[+] Preprocess for Tigress"
+gcc -std=c99 -D_POSIX_C_SOURCE=200809L \
+    -E samples/hello.c \
+    -o outputs/tigress/hello.i
+
 echo "[+] Tigress"
 docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
   tigress \
     --Environment=x86_64:Linux:Gcc:4.6 \
-    --gcc="gcc -std=c99 -D_POSIX_C_SOURCE=200809L" \
     --Transform=InitOpaque --Functions=main \
     --Transform=EncodeLiterals --Functions=main \
     --out=outputs/tigress/hello_obf.c \
-    samples/hello.c
+    outputs/tigress/hello.i
 
-docker run --rm \
-  -v "$PWD:/work" -w /work \
-  psec/tigress:3.3.3 \
-  gcc -std=c99 -D_POSIX_C_SOURCE=200809L \
-      -fno-builtin -Wno-attributes \
-      -O0 -g \
-      outputs/tigress/hello_obf.c \
-      -o outputs/tigress/hello_obf
+echo "[+] Compile obfuscated"
+gcc -std=c99 -D_POSIX_C_SOURCE=200809L \
+    -O0 -g \
+    outputs/tigress/hello_obf.c \
+    -o outputs/tigress/hello_obf
 
 echo "[+] Movfuscator"
 docker run --rm \
