@@ -41,7 +41,7 @@ docker run --rm \
 docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
-  gcc -std=c99 -D_POSIX_C_SOURCE=199309L -O0 -g \
+  gcc -std=gnu89 -O0 -g -Wno-attributes \
       outputs/tigress/hello_obf.c \
       -o outputs/tigress/hello_obf
 
