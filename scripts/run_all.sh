@@ -14,8 +14,7 @@ docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
   tigress --Environment=x86_64:Linux:Gcc:4.6 \
-	--CFLAGS="-std=c99 -D_POSIX_C_SOURCE=199309L" \
-        --Transform=InitOpaque \
+	--Transform=InitOpaque \
             --InitOpaqueStructs=list,array,env,input \
 	--Functions=main \
         --Transform=InitEntropy \
@@ -26,7 +25,8 @@ docker run --rm \
 docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
-  gcc -O0 -g outputs/tigress/hello_obf.c -o outputs/tigress/hello_obf
+  gcc -std=c99 -D_POSIX_C_SOURCE=199309L -O0 -g \ 
+      outputs/tigress/hello_obf.c -o outputs/tigress/hello_obf
 
 echo "[+] Movfuscator"
 docker run --rm \
