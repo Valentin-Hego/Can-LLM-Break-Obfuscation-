@@ -15,6 +15,7 @@ TMPFILE=outputs/hello_for_tigress.c
 
 cat > $TMPFILE <<'EOF'
 #define _POSIX_C_SOURCE 199309L
+#include <stdio.h>
 #include <time.h>
 #include <pthread.h>
 #include <stdlib.h>
