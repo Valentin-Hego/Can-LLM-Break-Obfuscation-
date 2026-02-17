@@ -10,8 +10,13 @@ echo "[+] Baseline"
 gcc -O0 -g samples/hello.c -o outputs/baseline/hello
 
 echo "[+] Tigress"
+
+TMPFILE=outputs/hello_for_tigress.c
+echo '#define _POSIX_C_SOURCE 199309L' > $TMPFILE
+echo '#include <time.h>' >> $TMPFILE
+cat samples/hello.c >> $TMPFILE
+
 docker run --rm \
-  -e CILLYFLAGS="-std=c99 -D_POSIX_C_SOURCE=199309L" \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
   tigress --Environment=x86_64:Linux:Gcc:4.6 \
@@ -22,7 +27,7 @@ docker run --rm \
         --Transform=EncodeLiterals \
             --Functions=main \
         --out=outputs/tigress/hello_obf.c \
-        samples/hello.c 
+        $TMPFILE
 
 docker run --rm \
   -v "$PWD:/work" -w /work \
