@@ -9,21 +9,21 @@ mkdir -p outputs/movfuscator
 echo "[+] Baseline"
 gcc -O0 -g samples/hello.c -o outputs/baseline/hello
 
-
+echo "[+] Tigress (v4)"
 docker run --rm \
   -v "$PWD:/work" -w /work \
-  psec/tigress:3.3.3 \
+  psec/tigress:4 \
   bash -c "
     tigress \
-      --Environment=x86_64:Linux:Gcc:4.6 \
+      --Environment=x86_64:Linux:Gcc \
       --Transform=InitOpaque --Functions=main \
       --Transform=EncodeLiterals --Functions=main \
       --out=outputs/tigress/hello_obf.c \
-      samples/hello.c
+      samples/hello.c \
     &&
-    gcc -w -O0 -g -o outputs/tigress/hello_obf outputs/tigress/hello_obf.c
+    gcc -O0 -g outputs/tigress/hello_obf.c \
+        -o outputs/tigress/hello_obf
   "
-
 
 echo "[+] Movfuscator"
 docker run --rm \
