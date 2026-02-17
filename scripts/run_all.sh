@@ -15,7 +15,7 @@ docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
   tigress --Environment=x86_64:Linux:Gcc:4.6 \
-        --gcc="gcc -std=c99 -D_POSIX_C_SOURCE=199309L -include time.h" \
+        --gcc="gcc -std=c99 -D_POSIX_C_SOURCE=199309L -include time.h -include pthread.h" \
         --Transform=InitOpaque --Functions=main \
         --Transform=InitEntropy --Functions=main \
         --Transform=EncodeLiterals --Functions=main \
