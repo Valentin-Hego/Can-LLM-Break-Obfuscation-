@@ -11,39 +11,23 @@ gcc -O0 -g samples/hello.c -o outputs/baseline/hello
 
 echo "[+] Tigress"
 
-TMPFILE=outputs/hello_for_tigress.c
-
-cat > $TMPFILE <<'EOF'
-#define _POSIX_C_SOURCE 199309L
-#include <stdio.h>
-#include <time.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <unistd.h>
-EOF
-
-cat samples/hello.c >> $TMPFILE
-
 docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
   tigress --Environment=x86_64:Linux:Gcc:4.6 \
-        --Transform=InitOpaque \
-            --InitOpaqueStructs=list,array,env,input \
-            --Functions=main \
-        --Transform=InitEntropy \
-        --Transform=EncodeLiterals \
-            --Functions=main \
+        --Transform=InitOpaque --Functions=main \
+        --Transform=InitEntropy --Functions=main \
+        --Transform=EncodeLiterals --Functions=main \
         --out=outputs/tigress/hello_obf.c \
-        $TMPFILE
+        samples/hello.c
 
+echo "[+] Compile Tigress output"
 
 docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
-  gcc -std=gnu89 -O0 -g -Wno-attributes \
-      outputs/tigress/hello_obf.c \
-      -o outputs/tigress/hello_obf
+  bash -c "gcc -O0 -g outputs/tigress/hello_obf.c -o outputs/tigress/hello_obf"
+
 
 echo "[+] Movfuscator"
 docker run --rm \
