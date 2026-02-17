@@ -14,14 +14,12 @@ docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
   tigress --Environment=x86_64:Linux:Gcc:4.6 \
-          --Transform=InitOpaque \
-	  --Transform=InitEntropy \
-	  --Functions=main \
-          --InitOpaqueStructs=list,array,env,input,plugin \
-          --Transform=EncodeLiterals \
-          --Functions=main \
-          --out=outputs/tigress/hello_obf.c \
-          samples/hello.c
+        --Transform=InitOpaque \
+            --InitOpaqueStructs=list,array,env,input \
+        --Transform=InitEntropy \
+        --Transform=EncodeLiterals --Functions=main \
+        --out=outputs/tigress/hello_obf.c \
+        samples/hello.c
 
 docker run --rm \
   -v "$PWD:/work" -w /work \
