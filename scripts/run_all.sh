@@ -21,9 +21,10 @@ docker run --rm \
       --out=outputs/tigress/hello_obf.c \
       samples/hello.c \
     &&
-    gcc -O0 -g outputs/tigress/hello_obf.c \
+    gcc -O0 -g -w outputs/tigress/hello_obf.c \
         -o outputs/tigress/hello_obf
   "
+
 
 echo "[+] Movfuscator"
 docker run --rm \
