@@ -14,6 +14,7 @@ docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
   tigress --Environment=x86_64:Linux:Gcc:4.6 \
+	--gcc-options="-std=c99 -D_POSIX_C_SOURCE=199309L" \
         --Transform=InitOpaque \
             --InitOpaqueStructs=list,array,env,input \
 	--Functions=main \
