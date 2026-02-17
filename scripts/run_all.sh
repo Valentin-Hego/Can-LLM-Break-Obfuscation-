@@ -11,22 +11,25 @@ gcc -O0 -g samples/hello.c -o outputs/baseline/hello
 
 echo "[+] Tigress"
 docker run --rm \
+  -e CILLYFLAGS="-std=c99 -D_POSIX_C_SOURCE=199309L" \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
   tigress --Environment=x86_64:Linux:Gcc:4.6 \
-	--Transform=InitOpaque \
+        --Transform=InitOpaque \
             --InitOpaqueStructs=list,array,env,input \
-	--Functions=main \
+            --Functions=main \
         --Transform=InitEntropy \
-        --Transform=EncodeLiterals --Functions=main \
+        --Transform=EncodeLiterals \
+            --Functions=main \
         --out=outputs/tigress/hello_obf.c \
-        samples/hello.c
+        samples/hello.c 
 
 docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
-  gcc -std=c99 -D_POSIX_C_SOURCE=199309L -O0 -g \ 
-      outputs/tigress/hello_obf.c -o outputs/tigress/hello_obf
+  gcc -std=c99 -D_POSIX_C_SOURCE=199309L -O0 -g \
+      outputs/tigress/hello_obf.c \
+      -o outputs/tigress/hello_obf
 
 echo "[+] Movfuscator"
 docker run --rm \
