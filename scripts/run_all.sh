@@ -14,6 +14,8 @@ docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
   tigress --Environment=x86_64:Linux:Gcc:4.6 \
+          --Transform=InitOpaque \
+          --InitOpaqueStructs=list,array,env,input,plugin \
           --Transform=EncodeLiterals \
           --Functions=main \
           --out=outputs/tigress/hello_obf.c \
