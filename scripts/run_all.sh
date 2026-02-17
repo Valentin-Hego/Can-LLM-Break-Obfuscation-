@@ -9,7 +9,7 @@ mkdir -p outputs/movfuscator
 echo "[+] Baseline"
 gcc -O0 -g samples/hello.c -o outputs/baseline/hello
 
-echo "[+] Tigress (generate + compile inside container)"
+
 docker run --rm \
   -v "$PWD:/work" -w /work \
   psec/tigress:3.3.3 \
@@ -19,10 +19,9 @@ docker run --rm \
       --Transform=InitOpaque --Functions=main \
       --Transform=EncodeLiterals --Functions=main \
       --out=outputs/tigress/hello_obf.c \
-      samples/hello.c \
+      samples/hello.c
     &&
-    gcc -O0 -g -w outputs/tigress/hello_obf.c \
-        -o outputs/tigress/hello_obf
+    gcc -w -O0 -g -o outputs/tigress/hello_obf outputs/tigress/hello_obf.c
   "
 
 
