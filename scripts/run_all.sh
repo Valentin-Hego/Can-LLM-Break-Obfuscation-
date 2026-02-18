@@ -31,4 +31,4 @@ docker run --rm \
   psec/movfuscator:1 \
   movcc samples/hello.c -o outputs/movfuscator/hello_mov
 
-echo "[+] Done"
+echo "[+] Success"
