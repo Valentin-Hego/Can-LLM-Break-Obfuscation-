@@ -6,6 +6,7 @@ obfuscation:
   tags:
     - automatisation
   script:
+    - docker info
     - ./scripts/run_all.sh
   artifacts:
     when: always
