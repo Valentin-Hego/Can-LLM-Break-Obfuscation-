@@ -11,7 +11,7 @@ shopt -s nullglob
 files=("$SAMPLES_DIR"/*.c)
 if (( ${#files[@]} == 0 )); then
   echo "No .c files found in $SAMPLES_DIR/"
-  exit 1
+  exit 0
 fi
 
 echo "[+] Baseline"
