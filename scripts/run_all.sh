@@ -1,34 +1,53 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-rm -rf outputs
-mkdir -p outputs/baseline
-mkdir -p outputs/tigress
-mkdir -p outputs/movfuscator
+SAMPLES_DIR="samples"
+OUT_DIR="outputs"
+
+rm -rf "$OUT_DIR"
+mkdir -p "$OUT_DIR"/{baseline,tigress,movfuscator}
+
+shopt -s nullglob
+files=("$SAMPLES_DIR"/*.c)
+if (( ${#files[@]} == 0 )); then
+  echo "No .c files found in $SAMPLES_DIR/"
+  exit 1
+fi
 
 echo "[+] Baseline"
-gcc -O0 -g samples/hello.c -o outputs/baseline/hello
+for f in "${files[@]}"; do
+  base="$(basename "$f" .c)"
+  gcc -O0 -g "$f" -o "$OUT_DIR/baseline/$base"
+done
 
 echo "[+] Tigress (v4)"
-docker run --rm \
-  -v "$PWD:/work" -w /work \
-  psec/tigress:4 \
-  bash -c "
-    tigress \
-      --Environment=x86_64:Linux:Gcc \
-      --Transform=InitOpaque --Functions=main \
-      --Transform=EncodeLiterals --Functions=main \
-      --out=outputs/tigress/hello_obf.c \
-      samples/hello.c \
-    &&
-    gcc -O0 -g outputs/tigress/hello_obf.c \
-        -o outputs/tigress/hello_obf
-  "
+for f in "${files[@]}"; do
+  base="$(basename "$f" .c)"
+  docker run --rm \
+    -v "$PWD:/work" -w /work \
+    psec/tigress:4 \
+    bash -lc "
+      set -e
+      tigress \
+        --Environment=x86_64:Linux:Gcc \
+        --Transform=InitOpaque --Functions=main \
+        --Transform=EncodeLiterals --Functions=main \
+        --out=$OUT_DIR/tigress/${base}_obf.c \
+        $f
+      gcc -O0 -g $OUT_DIR/tigress/${base}_obf.c -o $OUT_DIR/tigress/${base}_obf
+    "
+done
 
 echo "[+] Movfuscator"
-docker run --rm \
-  -v "$PWD:/work" -w /work \
-  psec/movfuscator:1 \
-  movcc samples/hello.c -o outputs/movfuscator/hello_mov
+for f in "${files[@]}"; do
+  base="$(basename "$f" .c)"
+  docker run --rm \
+    -v "$PWD:/work" -w /work \
+    psec/movfuscator:1 \
+    movcc "$f" -o "$OUT_DIR/movfuscator/${base}_mov"
+done
+
+echo "[+] Remove .c files from samples/"
+rm -f "$SAMPLES_DIR"/*.c
 
 echo "[+] Success"
