@@ -1,53 +1,60 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SAMPLES_DIR="samples"
-OUT_DIR="outputs"
-
-rm -rf "$OUT_DIR"
-mkdir -p "$OUT_DIR"/{baseline,tigress,movfuscator}
-
-shopt -s nullglob
-files=("$SAMPLES_DIR"/*.c)
-if (( ${#files[@]} == 0 )); then
-  echo "No .c files found in $SAMPLES_DIR/"
-  exit 0
-fi
+rm -rf outputs
+mkdir -p outputs/{baseline,tigress,movfuscator,tmp}
 
 echo "[+] Baseline"
-for f in "${files[@]}"; do
-  base="$(basename "$f" .c)"
-  gcc -O0 -g "$f" -o "$OUT_DIR/baseline/$base"
+for src in samples/*.c; do
+  base="$(basename "$src" .c)"
+  gcc -O0 -g "$src" -o "outputs/baseline/${base}"
 done
 
-echo "[+] Tigress (v4)"
-for f in "${files[@]}"; do
-  base="$(basename "$f" .c)"
+echo "[+] Tigress (v4) - wrapper includes + obfuscation"
+for src in samples/*.c; do
+  base="$(basename "$src" .c)"
+  wrap="outputs/tmp/${base}_wrap.c"
+  obfc="outputs/tigress/${base}_obf.c"
+  outbin="outputs/tigress/${base}_obf"
+
+  # Wrapper sans toucher au fichier original
+  {
+    echo "/* Auto-generated wrapper for Tigress */"
+    echo "#include <stdio.h>"
+    echo "#include <stdlib.h>"
+    echo "#include <stdint.h>"
+    echo "#include <string.h>"
+    echo "#include <time.h>"
+    echo "#include <pthread.h>"
+    echo "#include <unistd.h>"
+    echo
+    cat "$src"
+  } > "$wrap"
+
   docker run --rm \
     -v "$PWD:/work" -w /work \
     psec/tigress:4 \
     bash -lc "
-      set -e
       tigress \
         --Environment=x86_64:Linux:Gcc \
         --Transform=InitOpaque --Functions=main \
         --Transform=EncodeLiterals --Functions=main \
-        --out=$OUT_DIR/tigress/${base}_obf.c \
-        $f
-      gcc -O0 -g $OUT_DIR/tigress/${base}_obf.c -o $OUT_DIR/tigress/${base}_obf
+        --out='$obfc' \
+        '$wrap'
+      && gcc -O0 -g '$obfc' -o '$outbin'
     "
 done
 
 echo "[+] Movfuscator"
-for f in "${files[@]}"; do
-  base="$(basename "$f" .c)"
+for src in samples/*.c; do
+  base="$(basename "$src" .c)"
   docker run --rm \
     -v "$PWD:/work" -w /work \
     psec/movfuscator:1 \
-    movcc "$f" -o "$OUT_DIR/movfuscator/${base}_mov"
+    /opt/movfuscator/build/movcc "$src" -o "outputs/movfuscator/${base}_mov"
 done
 
-echo "[+] Remove .c files from samples/"
-rm -f "$SAMPLES_DIR"/*.c
+echo "[+] Cleanup samples"
+rm -f samples/*.c
 
-echo "[+] Success"
+echo "[+] Done"
