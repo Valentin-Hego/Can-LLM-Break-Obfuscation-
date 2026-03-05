@@ -49,9 +49,16 @@ echo "[+] Movfuscator"
 for src in samples/*.c; do
   base="$(basename "$src" .c)"
   docker run --rm \
-    -v "$PWD:/work" -w /work \
-    psec/movfuscator:1 \
-    /opt/movfuscator/build/movcc "$src" -o "outputs/movfuscator/${base}_mov"
+  -v "$PWD:/work" -w /work \
+  psec/movfuscator:1 \
+  bash -lc '
+    set -e
+    movcc samples/arithmetic_01.c \
+      -o outputs/movfuscator/arithmetic_01_mov \
+      -Wl/opt/movfuscator/movfuscator/lib/softfloat32.o \
+      -Wl/opt/movfuscator/movfuscator/lib/softfloat64.o \
+      -Wl/opt/movfuscator/movfuscator/lib/softfloatfull.o
+  '
 done
 
 echo "[+] Cleanup samples"
