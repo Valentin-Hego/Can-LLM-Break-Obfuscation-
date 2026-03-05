@@ -31,18 +31,18 @@ for src in samples/*.c; do
     cat "$src"
   } > "$wrap"
 
-  docker run --rm \
-    -v "$PWD:/work" -w /work \
-    psec/tigress:4 \
-    bash -lc "
-      tigress \
-        --Environment=x86_64:Linux:Gcc \
-        --Transform=InitOpaque --Functions=main \
-        --Transform=EncodeLiterals --Functions=main \
-        --out='$obfc' \
-        '$wrap'
-      && gcc -O0 -g '$obfc' -o '$outbin'
-    "
+docker run --rm \
+  -v "$PWD:/work" -w /work \
+  psec/tigress:4 \
+  bash -lc "set -e
+    tigress \
+      --Environment=x86_64:Linux:Gcc \
+      --Transform=InitOpaque --Functions=main \
+      --Transform=EncodeLiterals --Functions=main \
+      --out=outputs/tigress/${base}_obf.c \
+      outputs/tmp/${base}_wrap.c
+    gcc -O0 -g outputs/tigress/${base}_obf.c -o outputs/tigress/${base}_obf
+  "
 done
 
 echo "[+] Movfuscator"
