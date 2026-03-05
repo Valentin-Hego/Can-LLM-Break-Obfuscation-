@@ -1,0 +1,5 @@
+// --- arithmetic_13.c ---
+#include <stdio.h>
+int min_trois(int a, int b, int c) { int m = (a<b)?a:b; return (m<c)?m:c; }
+int main() { printf("%d\n", min_trois(7, 3, 5)); return 0; }
+
