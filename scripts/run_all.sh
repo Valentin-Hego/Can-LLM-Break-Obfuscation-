@@ -35,7 +35,7 @@ for src in samples/*.c; do
     -v "$PWD:/work" -w /work \
     psec/tigress:4 \
     bash -lc "set -e
-     tigress \
+      tigress \
         --Environment=x86_64:Linux:Gcc \
         --Transform=InitOpaque --Functions=main,f \
         --Transform=EncodeLiterals --Functions=main,f \
