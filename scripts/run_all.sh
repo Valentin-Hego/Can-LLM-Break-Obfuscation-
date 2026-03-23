@@ -31,7 +31,7 @@ for src in samples/*.c; do
     cat "$src"
   } > "$wrap"
 
-docker run --rm \
+  docker run --rm \
     -v "$PWD:/work" -w /work \
     psec/tigress:4 \
     bash -lc "set -e
