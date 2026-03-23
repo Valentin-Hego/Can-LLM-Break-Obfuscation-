@@ -2,6 +2,6 @@
 #include <stdio.h>
 int f(int n) { return 1 << n; }
 int main() {
-  printf("2^4 = %d\n", puissance_deux(4));
+  printf("2^4 = %d\n", f(4));
   return 0;
 }

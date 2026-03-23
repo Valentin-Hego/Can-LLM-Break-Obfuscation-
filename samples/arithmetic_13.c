@@ -5,6 +5,6 @@ int f(int a, int b, int c) {
   return (m < c) ? m : c;
 }
 int main() {
-  printf("%d\n", min_trois(7, 3, 5));
+  printf("%d\n", f(7, 3, 5));
   return 0;
 }
