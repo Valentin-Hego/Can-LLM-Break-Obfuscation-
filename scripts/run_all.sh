@@ -35,14 +35,11 @@ for src in samples/*.c; do
     -v "$PWD:/work" -w /work \
     psec/tigress:4 \
     bash -lc "set -e
-      tigress \
-        --Environment=x86_64:Linux:Gcc \
-        --Transform=InitOpaque --Functions=main,f \
-        --Transform=EncodeLiterals --Functions=main,f \
-        --Transform=EncodeArithmetic --Functions=main,f \
-        --Transform=Flatten --Functions=main,f \
-        --out=outputs/tigress/${base}_obf.c \
-        outputs/tmp/${base}_wrap.c
+     tigress \
+      --Environment=x86_64:Linux:Gcc \
+      --Transform=InitOpaque,EncodeLiterals,EncodeArithmetic,Flatten --Functions=main,f \
+      --out=outputs/tigress/${base}_obf.c \
+      outputs/tmp/${base}_wrap.c
 
       gcc -O0 -g outputs/tigress/${base}_obf.c -o outputs/tigress/${base}_obf
     "
