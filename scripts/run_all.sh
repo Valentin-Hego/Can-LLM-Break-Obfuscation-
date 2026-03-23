@@ -31,21 +31,8 @@ for src in samples/*.c; do
     cat "$src"
   } > "$wrap"
 
-  docker run --rm \
-    -v "$PWD:/work" -w /work \
-    psec/tigress:4 \
-    bash -lc "set -e
-      tigress \
-        --Environment=x86_64:Linux:Gcc \
-        --Transform=InitOpaque --Functions=main,f \
-        --Transform=EncodeLiterals --Functions=main,f \
-        --Transform=Flatten --Functions=main,f \
-        --out=outputs/tigress/${base}_obf.c \
-        outputs/tmp/${base}_wrap.c
-
-      gcc -O0 -g outputs/tigress/${base}_obf.c -o outputs/tigress/${base}_obf
-    "
-done
+  docker run --rm -v "$PWD:/work" -w /work psec/tigress:4 bash -lc "tigress --Environment=x86_64:Linux:Gcc --Seed=0 --Transform=InitEntropy --Transform=InitOpaque --Functions=main --InitOpaqueStructs=list,array --InitOpaqueCount=2 --InitOpaqueSize=30 --Transform=EncodeLiterals --Functions=* --EncodeLiteralsIntegerKinds=split,opaque --Transform=EncodeArithmetic --Functions=* --Transform=Flatten --Functions=* --FlattenDispatch=switch,goto,indirect --FlattenObfuscateNext=true --FlattenOpaqueStructs=array --out=outputs/tigress/${base}_obf.c outputs/tmp/${base}_wrap.c && gcc -O0 -g outputs/tigress/${base}_obf.c -o outputs/tigress/${base}_obf"
+  done
 
 echo "[+] Movfuscator"
 SOFTFLOAT="/opt/movfuscator/movfuscator/lib/softfloatfull.o"
