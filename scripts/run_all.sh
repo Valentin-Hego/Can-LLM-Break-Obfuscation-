@@ -37,9 +37,31 @@ for src in samples/*.c; do
     bash -lc "set -e
       tigress \
         --Environment=x86_64:Linux:Gcc \
-        --Transform=InitOpaque --Functions=main,f \
-        --Transform=EncodeLiterals --Functions=main,f \
-        --Transform=Flatten --Functions=main,f \
+        --Seed=0 \
+        \
+        --Transform=InitOpaque \
+          --Functions=main \
+          --InitOpaqueStructs=list,array \
+          --InitOpaqueCount=2 \
+          --InitOpaqueSize=30 \
+        \
+        --Transform=EncodeLiterals \
+          --Functions=* \
+          --EncodeLiteralsIntegerKinds=split,opaque \
+        \
+        --Transform=EncodeArithmetic \
+          --Functions=* \
+        \
+        --Transform=AddOpaque \
+          --Functions=* \
+          --AddOpaqueCount=2 \
+        \
+        --Transform=Flatten \
+          --Functions=* \
+          --FlattenDispatch=switch,goto,indirect \
+          --FlattenObfuscateNext=true \
+          --FlattenOpaqueStructs=array \
+        \
         --out=outputs/tigress/${base}_obf.c \
         outputs/tmp/${base}_wrap.c
 
