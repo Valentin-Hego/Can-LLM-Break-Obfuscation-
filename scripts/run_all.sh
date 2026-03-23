@@ -42,7 +42,6 @@ docker run --rm \
         --Transform=EncodeLiterals --Functions=main,f \
         --Transform=EncodeArithmetic --Functions=main,f \
         --Transform=Flatten --Functions=main,f \
-        --Transform=BogusControlFlow --Functions=main,f \
         --out=outputs/tigress/${base}_obf.c \
         outputs/tmp/${base}_wrap.c
 
