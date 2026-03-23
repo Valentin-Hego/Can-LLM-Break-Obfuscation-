@@ -39,6 +39,8 @@ for src in samples/*.c; do
         --Environment=x86_64:Linux:Gcc \
         --Seed=0 \
         \
+        --Transform=InitEntropy' \
+          --Functions-main
         --Transform=InitOpaque \
           --Functions=main \
           --InitOpaqueStructs=list,array \
