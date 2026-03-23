@@ -1,5 +1,7 @@
 // --- arithmetic_20.c ---
 #include <stdio.h>
-int set_bit(int n, int pos) { return n | (1 << pos); }
-int main() { printf("5 avec bit 1 a 1 : %d\n", set_bit(5, 1)); return 0; }
-
+int f(int n, int pos) { return n | (1 << pos); }
+int main() {
+  printf("5 avec bit 1 a 1 : %d\n", set_bit(5, 1));
+  return 0;
+}
