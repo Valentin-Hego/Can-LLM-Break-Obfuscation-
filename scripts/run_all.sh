@@ -38,7 +38,6 @@ docker run --rm \
       tigress \
         --Environment=x86_64:Linux:Gcc \
         --Transform=InitOpaque --Functions=main,f \
-        --Transform=AddOpaque --Functions=main,f \
         --Transform=EncodeLiterals --Functions=main,f \
         --Transform=EncodeArithmetic --Functions=main,f \
         --Transform=Flatten --Functions=main,f \
