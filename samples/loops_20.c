@@ -8,6 +8,6 @@ int f(int n) {
   return s == n;
 }
 int main() {
-  printf("28 est parfait ? %d\n", est_parfait(28));
+  printf("28 est parfait ? %d\n", f(28));
   return 0;
 }
