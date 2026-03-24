@@ -51,9 +51,10 @@ for transform in "${TRANSFORMS[@]}"; do
         cat "$src"
       } > "$wrap"
 
-      # Construction dynamique de la commande Tigress
-      # Base commune à toutes les exécutions
+      # Base commune à toutes les exécutions : Environnement + Initialisation des Opaques
       TIGRESS_OPTS="--Environment=x86_64:Linux:Gcc --Seed=0"
+      TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitEntropy"
+      TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitOpaque --Functions=main --InitOpaqueStructs=list,array --InitOpaqueCount=2 --InitOpaqueSize=30"
       
       # Options spécifiques injectées selon le Transform en cours d'évaluation
       case "$transform" in
