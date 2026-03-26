@@ -11,5 +11,5 @@ obfuscation:
   artifacts:
     when: always
     paths:
-      - outputs/
-
+      # On pointe maintenant vers l'archive générée par le script
+      - outputs.tar.gz

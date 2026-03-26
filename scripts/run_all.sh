@@ -16,7 +16,7 @@ echo "[+] Tigress (v4) - Test des Transforms un à un par catégorie"
 TRANSFORMS=("Flatten" "EncodeLiterals" "EncodeArithmetic" "Split" "Virtualize")
 
 # 2. Liste des préfixes pour séparer tes fichiers
-CATEGORIES=("arithmetics" "function_call" "loops")
+CATEGORIES=("arithmetic" "function_call" "loops")
 
 for transform in "${TRANSFORMS[@]}"; do
   echo "  -> Application du Transform : $transform"
@@ -93,6 +93,18 @@ for src in samples/*.c; do
     psec/movfuscator:1 \
     bash -lc "/opt/movfuscator/build/movcc '$src' -o 'outputs/movfuscator/${base}_mov' -Wl'$SOFTFLOAT'"
 done
+
+echo "[+] Nettoyage des fichiers intermédiaires"
+# On supprime le dossier tmp qui contient tous les wrappers inutiles
+rm -rf outputs/tmp
+
+# On supprime les éventuels fichiers assembleur et objets laissés par movcc
+rm -f outputs/movfuscator/*.o outputs/movfuscator/*.s
+
+echo "[+] Compression des artefacts"
+# Les binaires Movfuscator et les codes sources Tigress se compressent extrêmement bien.
+# On crée une archive unique pour GitLab CI.
+tar -czf outputs.tar.gz outputs/
 
 echo "[+] Cleanup samples"
 rm -f samples/*.c
