@@ -1,8 +1,9 @@
 // --- loops_11.c ---
 #include <stdio.h>
 void f(int n) {
-  for (int i = 0; i < n; i++)
+  for (int i = 0; i < n; i++) {
     printf("*");
+  }
   printf("\n");
 }
 int main() {

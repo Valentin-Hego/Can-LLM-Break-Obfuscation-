@@ -16,7 +16,7 @@ echo "[+] Tigress (v4) - Test des Transforms un à un par catégorie"
 TRANSFORMS=("Flatten" "EncodeLiterals" "EncodeArithmetic" "Split" "Virtualize")
 
 # 2. Liste des préfixes pour séparer tes fichiers
-CATEGORIES=("arithmetics" "function_call" "loops")
+CATEGORIES=("arithmetic" "function_call" "loops")
 
 for transform in "${TRANSFORMS[@]}"; do
   echo "  -> Application du Transform : $transform"

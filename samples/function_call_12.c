@@ -1,8 +1,9 @@
 // --- function_call_12.c ---
 #include <stdio.h>
 void f(int n) {
-  if (n == 0)
+  if (n == 0) {
     return;
+  }
   printf("%d ", n);
   f(n - 1);
 }

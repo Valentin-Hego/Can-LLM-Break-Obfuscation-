@@ -2,8 +2,9 @@
 #include <stdio.h>
 int f(int base, int exp) {
   int r = 1;
-  while (exp--)
+  while (exp--) {
     r *= base;
+  }
   return r;
 }
 int main() {

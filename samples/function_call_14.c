@@ -1,8 +1,9 @@
 // --- function_call_14.c ---
 #include <stdio.h>
 int f(int n) {
-  if (n <= 1)
+  if (n <= 1) {
     return 1;
+  }
   return n * f(n - 1);
 }
 int main() {
