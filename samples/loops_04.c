@@ -1,7 +1,8 @@
 // --- loops_04.c ---
 #include <stdio.h>
 void f(int n) {
-  for (int i = 2; i <= n; i += 2) {
+  int i;
+  for (i = 2; i <= n; i += 2) {
     printf("%d ", i);
   }
   printf("\n");

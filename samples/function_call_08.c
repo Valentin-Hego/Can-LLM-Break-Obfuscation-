@@ -2,7 +2,8 @@
 #include <stdio.h>
 int f(int arr[], int taille) {
   int s = 0;
-  for (int i = 0; i < taille; i++) {
+  int i;
+  for (i = 0; i < taille; i++) {
     s += arr[i];
   }
   return s;
