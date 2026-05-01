@@ -5,14 +5,14 @@ set -euo pipefail
 # Configuration
 # =========================
 
-RUN_MOVFUSCATOR="${RUN_MOVFUSCATOR:-0}"
-MAX_ASM_LINES="${MAX_ASM_LINES:-800}"
-MAX_ASM_BYTES="${MAX_ASM_BYTES:-120000}"
+ASM_SYNTAX="${ASM_SYNTAX:-att}"          # att ou intel
+RUN_MOVFUSCATOR="${RUN_MOVFUSCATOR:-0}" # 0 par défaut
+MAX_ASM_LINES="${MAX_ASM_LINES:-800}"   # utilisé seulement pour le prompt en fallback
+MAX_ASM_BYTES="${MAX_ASM_BYTES:-120000}" # utilisé seulement pour le prompt
 
 rm -rf outputs
 mkdir -p outputs/{baseline,tigress,movfuscator,tmp,asm,prompts}
 
-# Toujours tenter de produire une archive, même si le job échoue.
 cleanup_archive() {
   if [ -d outputs ]; then
     tar -czf outputs.tar.gz outputs/ || true
@@ -27,8 +27,6 @@ trap cleanup_archive EXIT
 detect_target_func() {
   local src="$1"
 
-  # Détection simple de la première fonction C non-main.
-  # Suffisant pour tes samples si chaque fichier contient une fonction principale à tester.
   grep -E '^[[:space:]]*(int|long|short|char|void|float|double|unsigned|signed)[[:space:]\*]+[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*\(' "$src" \
     | grep -vE '\bmain[[:space:]]*\(' \
     | head -n 1 \
@@ -40,8 +38,6 @@ detect_signature() {
   local src="$1"
   local func="$2"
 
-  # Essaie de récupérer la ligne de signature.
-  # Exemple : int add(int x, int y) {
   local sig
   sig="$(grep -E "^[[:space:]]*(int|long|short|char|void|float|double|unsigned|signed)[[:space:]\*]+${func}[[:space:]]*\(" "$src" \
     | head -n 1 \
@@ -56,33 +52,56 @@ detect_signature() {
   fi
 }
 
-dump_limited_asm() {
+objdump_full() {
   local bin="$1"
-  local asm_file="$2"
-  local max_lines="${3:-800}"
+  local out="$2"
 
-  # Avec pipefail activé, objdump peut échouer à cause du SIGPIPE quand head s'arrête.
-  # On désactive donc pipefail uniquement pour ce pipeline.
+  if [ "$ASM_SYNTAX" = "intel" ]; then
+    objdump -d -Mintel "$bin" > "$out"
+  else
+    objdump -d "$bin" > "$out"
+  fi
+}
+
+objdump_function() {
+  local bin="$1"
+  local func="$2"
+  local out="$3"
+
+  if [ "$ASM_SYNTAX" = "intel" ]; then
+    objdump -d -Mintel --disassemble="$func" "$bin" > "$out" 2>/dev/null || true
+  else
+    objdump -d --disassemble="$func" "$bin" > "$out" 2>/dev/null || true
+  fi
+}
+
+objdump_limited_for_prompt() {
+  local bin="$1"
+  local out="$2"
+
   set +o pipefail
-  objdump -d -Mintel "$bin" | head -n "$max_lines" > "$asm_file"
+  if [ "$ASM_SYNTAX" = "intel" ]; then
+    objdump -d -Mintel "$bin" | head -n "$MAX_ASM_LINES" > "$out"
+  else
+    objdump -d "$bin" | head -n "$MAX_ASM_LINES" > "$out"
+  fi
   set -o pipefail
 }
 
-truncate_asm_if_needed() {
-  local asm_file="$1"
-  local max_bytes="${2:-120000}"
+truncate_prompt_asm_if_needed() {
+  local file="$1"
 
-  if [ ! -f "$asm_file" ]; then
+  if [ ! -f "$file" ]; then
     return 0
   fi
 
   local size
-  size="$(wc -c < "$asm_file")"
+  size="$(wc -c < "$file")"
 
-  if [ "$size" -gt "$max_bytes" ]; then
-    echo "    [!] ASM trop gros (${size} bytes), troncature à ${max_bytes} bytes"
-    head -c "$max_bytes" "$asm_file" > "${asm_file}.truncated"
-    mv "${asm_file}.truncated" "$asm_file"
+  if [ "$size" -gt "$MAX_ASM_BYTES" ]; then
+    echo "    [!] ASM du prompt trop gros (${size} bytes), troncature à ${MAX_ASM_BYTES} bytes"
+    head -c "$MAX_ASM_BYTES" "$file" > "${file}.truncated"
+    mv "${file}.truncated" "$file"
   fi
 }
 
@@ -105,43 +124,28 @@ generate_asm_and_prompt() {
 
   local asm_file="${asm_dir}/${base}.asm"
   local prompt_file="${prompt_dir}/${base}_prompt.txt"
+  local prompt_func_asm="outputs/tmp/${base}_${backend}_${transform}_${category}_prompt_func.asm"
 
-  echo "    [+] Extraction ASM : ${backend}/${transform}/${category}/${base}"
-  echo "    [+] Fonction cible : ${target_func}"
+  echo "    [+] Extraction ASM complet : ${backend}/${transform}/${category}/${base}"
+  echo "    [+] Syntaxe ASM : ${ASM_SYNTAX}"
+  echo "    [+] Fonction cible pour prompt : ${target_func}"
 
-  # Extraction ciblée de la fonction.
-  if objdump -d -Mintel --disassemble="$target_func" "$bin" > "$asm_file" 2>/dev/null; then
-    if grep -q "<${target_func}>" "$asm_file"; then
-      echo "    [+] Fonction ${target_func} trouvée"
-    else
-      echo "    [!] Fonction ${target_func} introuvable"
+  # Le fichier outputs/asm est TOUJOURS le désassemblage complet du binaire.
+  objdump_full "$bin" "$asm_file"
 
-      if [ "$backend" = "movfuscator" ]; then
-        echo "    [!] Movfuscator : pas de fallback complet, prompt ignoré"
-        rm -f "$asm_file"
-        return 0
-      fi
+  # Pour le prompt uniquement, on tente d'extraire la fonction cible.
+  objdump_function "$bin" "$target_func" "$prompt_func_asm"
 
-      echo "    [!] Fallback limité à ${MAX_ASM_LINES} lignes"
-      dump_limited_asm "$bin" "$asm_file" "$MAX_ASM_LINES"
-    fi
-  else
-    echo "    [!] Extraction ciblée impossible"
-
-    if [ "$backend" = "movfuscator" ]; then
-      echo "    [!] Movfuscator : pas de fallback complet, prompt ignoré"
-      rm -f "$asm_file"
-      return 0
-    fi
-
-    echo "    [!] Fallback limité à ${MAX_ASM_LINES} lignes"
-    dump_limited_asm "$bin" "$asm_file" "$MAX_ASM_LINES"
+  if ! grep -q "<${target_func}>" "$prompt_func_asm" 2>/dev/null; then
+    echo "    [!] Fonction ${target_func} introuvable pour le prompt"
+    echo "    [!] Fallback prompt limité à ${MAX_ASM_LINES} lignes du binaire complet"
+    objdump_limited_for_prompt "$bin" "$prompt_func_asm"
   fi
 
-  truncate_asm_if_needed "$asm_file" "$MAX_ASM_BYTES"
+  truncate_prompt_asm_if_needed "$prompt_func_asm"
 
-  if [ ! -s "$asm_file" ]; then
-    echo "    [!] ASM vide, prompt non généré"
+  if [ ! -s "$prompt_func_asm" ]; then
+    echo "    [!] ASM du prompt vide, prompt non généré"
     return 0
   fi
 
@@ -150,7 +154,7 @@ generate_asm_and_prompt() {
   {
     echo "Tu es un expert en reverse engineering de binaires Linux x86-64."
     echo
-    echo "À partir du code assembleur Intel ci-dessous, reconstruis le code C correspondant."
+    echo "À partir du code assembleur ci-dessous, reconstruis le code C correspondant."
     echo
     echo "Contraintes obligatoires :"
     echo "- Réponds uniquement avec du code C."
@@ -165,9 +169,16 @@ generate_asm_and_prompt() {
     echo "- Si le code assembleur contient de l'obfuscation, simplifie-la uniquement si le comportement reste identique."
     echo "- Utilise des noms de variables simples : x, y, a, b, i, j, tmp."
     echo
-    echo "Assembleur :"
+    echo "Informations :"
+    echo "- Backend : ${backend}"
+    echo "- Transform : ${transform}"
+    echo "- Catégorie : ${category}"
+    echo "- Sample : ${base}"
+    echo "- Syntaxe assembleur : ${ASM_SYNTAX}"
+    echo
+    echo "Assembleur de la fonction cible ou extrait limité :"
     echo '```asm'
-    cat "$asm_file"
+    cat "$prompt_func_asm"
     echo '```'
   } > "$prompt_file"
 }
@@ -223,7 +234,6 @@ for transform in "${TRANSFORMS[@]}"; do
       obfc="${outdir}/${base}_obf.c"
       outbin="${outdir}/${base}_obf"
 
-      # Wrapper sans toucher au fichier original.
       {
         echo "/* Auto-generated wrapper for Tigress */"
         echo "#include <stdio.h>"
@@ -237,13 +247,10 @@ for transform in "${TRANSFORMS[@]}"; do
         cat "$src"
       } > "$wrap"
 
-      # Base commune à toutes les exécutions.
       TIGRESS_OPTS="--Environment=x86_64:Linux:Gcc --Seed=0"
       TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitEntropy"
       TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitOpaque --Functions=main --InitOpaqueStructs=list,array --InitOpaqueCount=2 --InitOpaqueSize=30"
 
-      # Options spécifiques selon le transform.
-      # On obfusque uniquement la fonction détectée, pas tout le programme.
       case "$transform" in
         Flatten)
           TIGRESS_OPTS="$TIGRESS_OPTS --Transform=Flatten --Functions=${target_func} --FlattenDispatch=switch,goto,indirect --FlattenObfuscateNext=true --FlattenOpaqueStructs=array"
@@ -274,7 +281,7 @@ for transform in "${TRANSFORMS[@]}"; do
 done
 
 # =========================
-# Movfuscator, désactivé par défaut
+# Movfuscator
 # =========================
 
 if [ "$RUN_MOVFUSCATOR" = "1" ]; then
@@ -323,6 +330,6 @@ echo "[+] Compression des artefacts"
 tar -czf outputs.tar.gz outputs/
 
 echo "[+] Done"
+echo "[+] ASM complets générés dans : outputs/asm/"
 echo "[+] Prompts générés dans : outputs/prompts/"
-echo "[+] ASM générés dans : outputs/asm/"
 echo "[+] Archive : outputs.tar.gz"
