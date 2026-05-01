@@ -12,6 +12,4 @@ obfuscation:
     when: always
     paths:
       - outputs.tar.gz
-      - outputs/prompts/
-      - outputs/asm/
 

@@ -25,16 +25,54 @@ generate_asm_and_prompt() {
   local asm_file="${asm_dir}/${base}.asm"
   local prompt_file="${prompt_dir}/${base}_prompt.txt"
 
+  local max_lines="${MAX_ASM_LINES:-800}"
+
   echo "    [+] Extraction ASM : ${backend}/${transform}/${category}/${base}"
 
+  # Tentative d'extraction ciblée de la fonction.
   if objdump -d -Mintel --disassemble="$TARGET_FUNC" "$bin" > "$asm_file" 2>/dev/null; then
-    if ! grep -q "<${TARGET_FUNC}>" "$asm_file"; then
-      echo "    [!] Fonction ${TARGET_FUNC} introuvable, fallback sur tout le binaire"
-      objdump -d -Mintel "$bin" > "$asm_file"
+    if grep -q "<${TARGET_FUNC}>" "$asm_file"; then
+      echo "    [+] Fonction ${TARGET_FUNC} trouvée"
+    else
+      echo "    [!] Fonction ${TARGET_FUNC} introuvable"
+
+      if [ "$backend" = "movfuscator" ]; then
+        echo "    [!] Movfuscator : pas de fallback complet, fichier ignoré"
+        rm -f "$asm_file"
+        return 0
+      fi
+
+      echo "    [!] Fallback limité à ${max_lines} lignes"
+      objdump -d -Mintel "$bin" | head -n "$max_lines" > "$asm_file"
     fi
   else
-    echo "    [!] Extraction ciblée impossible, fallback sur tout le binaire"
-    objdump -d -Mintel "$bin" > "$asm_file"
+    echo "    [!] Extraction ciblée impossible"
+
+    if [ "$backend" = "movfuscator" ]; then
+      echo "    [!] Movfuscator : pas de fallback complet, fichier ignoré"
+      rm -f "$asm_file"
+      return 0
+    fi
+
+    echo "    [!] Fallback limité à ${max_lines} lignes"
+    objdump -d -Mintel "$bin" | head -n "$max_lines" > "$asm_file"
+  fi
+
+  # Sécurité : si le fichier ASM est trop gros, on le tronque.
+  local max_bytes="${MAX_ASM_BYTES:-120000}"
+
+  if [ -f "$asm_file" ]; then
+    local size
+    size="$(wc -c < "$asm_file")"
+
+    if [ "$size" -gt "$max_bytes" ]; then
+      echo "    [!] ASM trop gros (${size} bytes), troncature à ${max_bytes} bytes"
+      head -c "$max_bytes" "$asm_file" > "${asm_file}.truncated"
+      mv "${asm_file}.truncated" "$asm_file"
+    fi
+  else
+    echo "    [!] Pas de fichier ASM généré"
+    return 0
   fi
 
   echo "    [+] Génération prompt : $prompt_file"
@@ -63,6 +101,7 @@ generate_asm_and_prompt() {
     echo '```'
   } > "$prompt_file"
 }
+
 
 echo "[+] Baseline"
 for src in samples/*.c; do
