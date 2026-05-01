@@ -7,10 +7,11 @@ obfuscation:
     - automatisation
   script:
     - docker info
-    - python3 --version
-    - python3 -m pip install --user openai
+    - ./scripts/run_all.sh
   artifacts:
     when: always
     paths:
-      # On pointe maintenant vers l'archive générée par le script
       - outputs.tar.gz
+      - outputs/prompts/
+      - outputs/asm/
+
