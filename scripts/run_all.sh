@@ -151,16 +151,9 @@ generate_asm_and_prompt() {
     echo "- Si le code assembleur contient de l'obfuscation, simplifie-la uniquement si le comportement reste identique."
     echo "- Utilise des noms de variables simples : x, y, a, b, i, j, tmp."
     echo
-    echo "Informations :"
-    echo "- Backend : ${backend}"
-    echo "- Transform : ${transform}"
-    echo "- Catégorie : ${category}"
-    echo "- Sample : ${base}"
-    echo "- Syntaxe assembleur : ${ASM_SYNTAX}"
     echo
-    echo "Assembleur de la fonction cible ou extrait limité :"
+    echo "Assembleur du binaire cible:"
     echo '```asm'
-    cat "$prompt_func_asm"
     echo '```'
   } > "$prompt_file"
 }
