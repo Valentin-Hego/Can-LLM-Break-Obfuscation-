@@ -8,7 +8,7 @@ obfuscation:
   script:
     - docker info
     - python3 --version
-    - pip3 install --user openai
+    - pip install --user openai
   artifacts:
     when: always
     paths:
