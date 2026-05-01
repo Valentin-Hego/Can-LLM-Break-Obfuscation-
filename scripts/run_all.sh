@@ -5,9 +5,9 @@ set -euo pipefail
 # Configuration
 # =========================
 
-ASM_SYNTAX="${ASM_SYNTAX:-att}"          # att ou intel
-RUN_MOVFUSCATOR="${RUN_MOVFUSCATOR:-0}" # 0 par défaut
-MAX_ASM_LINES="${MAX_ASM_LINES:-800}"   # utilisé seulement pour le prompt en fallback
+ASM_SYNTAX="${ASM_SYNTAX:-att}"           # att ou intel
+RUN_MOVFUSCATOR="${RUN_MOVFUSCATOR:-0}"  # 0 par défaut
+MAX_ASM_LINES="${MAX_ASM_LINES:-800}"    # utilisé seulement pour le prompt en fallback
 MAX_ASM_BYTES="${MAX_ASM_BYTES:-120000}" # utilisé seulement pour le prompt
 
 rm -rf outputs
@@ -32,24 +32,6 @@ detect_target_func() {
     | head -n 1 \
     | sed -E 's/^[[:space:]]*(int|long|short|char|void|float|double|unsigned|signed)[[:space:]\*]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*\(.*/\2/' \
     || true
-}
-
-detect_signature() {
-  local src="$1"
-  local func="$2"
-
-  local sig
-  sig="$(grep -E "^[[:space:]]*(int|long|short|char|void|float|double|unsigned|signed)[[:space:]\*]+${func}[[:space:]]*\(" "$src" \
-    | head -n 1 \
-    | sed -E 's/[[:space:]]*\{[[:space:]]*$//' \
-    | sed -E 's/[[:space:]]*$//' \
-    || true)"
-
-  if [ -z "$sig" ]; then
-    echo "${func}(/* signature inconnue */)"
-  else
-    echo "$sig"
-  fi
 }
 
 objdump_full() {
@@ -112,7 +94,6 @@ generate_asm_and_prompt() {
   local category="$4"
   local bin="$5"
   local target_func="$6"
-  local target_signature="$7"
 
   local base
   base="$(basename "$src" .c)"
@@ -162,9 +143,10 @@ generate_asm_and_prompt() {
     echo "- Ne mets pas de Markdown."
     echo "- Ne mets pas de main."
     echo "- Le code doit être compilable avec gcc."
-    echo "- La fonction reconstruite doit avoir exactement cette signature :"
-    echo "${target_signature};"
+    echo "- Ne donne que la fonction reconstruite."
     echo "- Le nom de la fonction doit être ${target_func}."
+    echo "- Déduis toi-même le nombre et le type des paramètres à partir de l'assembleur."
+    echo "- Ne te base pas sur une signature source fournie : elle n'est volontairement pas donnée."
     echo "- Préserve strictement la sémantique : conditions, boucles, calculs, valeurs de retour."
     echo "- Si le code assembleur contient de l'obfuscation, simplifie-la uniquement si le comportement reste identique."
     echo "- Utilise des noms de variables simples : x, y, a, b, i, j, tmp."
@@ -224,11 +206,8 @@ for transform in "${TRANSFORMS[@]}"; do
         target_func="main"
       fi
 
-      target_signature="$(detect_signature "$src" "$target_func")"
-
       echo "    [+] Sample : $base"
       echo "    [+] Fonction détectée : $target_func"
-      echo "    [+] Signature détectée : $target_signature"
 
       wrap="outputs/tmp/${base}_${transform}_wrap.c"
       obfc="${outdir}/${base}_obf.c"
@@ -275,7 +254,7 @@ for transform in "${TRANSFORMS[@]}"; do
       docker run --rm -v "$PWD:/work" -w /work psec/tigress:4 \
         bash -lc "tigress $TIGRESS_OPTS --out=${obfc} ${wrap} && gcc -O0 -g ${obfc} -o ${outbin}"
 
-      generate_asm_and_prompt "$src" "tigress" "$transform" "$category" "$outbin" "$target_func" "$target_signature"
+      generate_asm_and_prompt "$src" "tigress" "$transform" "$category" "$outbin" "$target_func"
     done
   done
 done
@@ -302,7 +281,8 @@ if [ "$RUN_MOVFUSCATOR" = "1" ]; then
       target_func="main"
     fi
 
-    target_signature="$(detect_signature "$src" "$target_func")"
+    echo "    [+] Sample : $base"
+    echo "    [+] Fonction détectée : $target_func"
 
     outbin="outputs/movfuscator/${base}_mov"
 
@@ -311,7 +291,7 @@ if [ "$RUN_MOVFUSCATOR" = "1" ]; then
       psec/movfuscator:1 \
       bash -lc "/opt/movfuscator/build/movcc '$src' -o '$outbin' -Wl'$SOFTFLOAT'"
 
-    generate_asm_and_prompt "$src" "movfuscator" "movfuscator" "$category" "$outbin" "$target_func" "$target_signature"
+    generate_asm_and_prompt "$src" "movfuscator" "movfuscator" "$category" "$outbin" "$target_func"
   done
 else
   echo "[+] Movfuscator désactivé par défaut"
