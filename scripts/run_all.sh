@@ -11,7 +11,7 @@ MAX_ASM_LINES="${MAX_ASM_LINES:-800}"    # utilisé seulement pour le prompt en 
 MAX_ASM_BYTES="${MAX_ASM_BYTES:-120000}" # utilisé seulement pour le prompt
 
 rm -rf outputs
-mkdir -p outputs/{baseline,tigress,movfuscator,tmp,asm,prompts}
+mkdir -p outputs/{baseline,tigress,tigress_combo,movfuscator,tmp,asm,prompts}
 
 cleanup_archive() {
   if [ -d outputs ]; then
@@ -154,8 +154,35 @@ generate_asm_and_prompt() {
     echo
     echo "Assembleur du binaire cible:"
     echo '```asm'
+    cat "$prompt_func_asm"
     echo '```'
   } > "$prompt_file"
+}
+
+build_tigress_options_for_transform() {
+  local transform="$1"
+  local target_func="$2"
+
+  case "$transform" in
+    Flatten)
+      echo "--Transform=Flatten --Functions=${target_func} --FlattenDispatch=switch,goto,indirect --FlattenObfuscateNext=true --FlattenOpaqueStructs=array"
+      ;;
+    EncodeLiterals)
+      echo "--Transform=EncodeLiterals --Functions=${target_func} --EncodeLiteralsIntegerKinds=split,opaque"
+      ;;
+    EncodeArithmetic)
+      echo "--Transform=EncodeArithmetic --Functions=${target_func}"
+      ;;
+    Split)
+      echo "--Transform=Split --Functions=${target_func}"
+      ;;
+    Virtualize)
+      echo "--Transform=Virtualize --Functions=${target_func}"
+      ;;
+    *)
+      echo "--Transform=${transform} --Functions=${target_func}"
+      ;;
+  esac
 }
 
 # =========================
@@ -172,7 +199,7 @@ for src in samples/*.c; do
 done
 
 # =========================
-# Tigress
+# Tigress - Transforms unitaires
 # =========================
 
 echo "[+] Tigress (v4) - Test des Transforms un à un par catégorie"
@@ -222,32 +249,85 @@ for transform in "${TRANSFORMS[@]}"; do
       TIGRESS_OPTS="--Environment=x86_64:Linux:Gcc --Seed=0"
       TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitEntropy"
       TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitOpaque --Functions=main --InitOpaqueStructs=list,array --InitOpaqueCount=2 --InitOpaqueSize=30"
-
-      case "$transform" in
-        Flatten)
-          TIGRESS_OPTS="$TIGRESS_OPTS --Transform=Flatten --Functions=${target_func} --FlattenDispatch=switch,goto,indirect --FlattenObfuscateNext=true --FlattenOpaqueStructs=array"
-          ;;
-        EncodeLiterals)
-          TIGRESS_OPTS="$TIGRESS_OPTS --Transform=EncodeLiterals --Functions=${target_func} --EncodeLiteralsIntegerKinds=split,opaque"
-          ;;
-        EncodeArithmetic)
-          TIGRESS_OPTS="$TIGRESS_OPTS --Transform=EncodeArithmetic --Functions=${target_func}"
-          ;;
-        Split)
-          TIGRESS_OPTS="$TIGRESS_OPTS --Transform=Split --Functions=${target_func}"
-          ;;
-        Virtualize)
-          TIGRESS_OPTS="$TIGRESS_OPTS --Transform=Virtualize --Functions=${target_func}"
-          ;;
-        *)
-          TIGRESS_OPTS="$TIGRESS_OPTS --Transform=$transform --Functions=${target_func}"
-          ;;
-      esac
+      TIGRESS_OPTS="$TIGRESS_OPTS $(build_tigress_options_for_transform "$transform" "$target_func")"
 
       docker run --rm -v "$PWD:/work" -w /work psec/tigress:4 \
         bash -lc "tigress $TIGRESS_OPTS --out=${obfc} ${wrap} && gcc -O0 -g ${obfc} -o ${outbin}"
 
       generate_asm_and_prompt "$src" "tigress" "$transform" "$category" "$outbin" "$target_func"
+    done
+  done
+done
+
+# =========================
+# Tigress - Combinaisons de plusieurs transforms
+# =========================
+
+echo "[+] Tigress (v4) - Combinaisons de transforms"
+
+# Format :
+# nom_combo|suite_de_transforms
+TIGRESS_COMBOS=(
+  "flatten_literals_arith|Flatten EncodeLiterals EncodeArithmetic"
+  "flatten_split_arith|Flatten Split EncodeArithmetic"
+  "virtualize_literals_split|Virtualize EncodeLiterals Split"
+)
+
+for combo_entry in "${TIGRESS_COMBOS[@]}"; do
+  combo_name="${combo_entry%%|*}"
+  combo_transforms="${combo_entry#*|}"
+
+  echo "  -> Application du combo : $combo_name"
+  echo "     Transforms : $combo_transforms"
+
+  for category in "${CATEGORIES[@]}"; do
+    outdir="outputs/tigress_combo/${combo_name}/${category}"
+    mkdir -p "$outdir"
+
+    for src in samples/${category}_*.c; do
+      [ -e "$src" ] || continue
+
+      base="$(basename "$src" .c)"
+
+      target_func="$(detect_target_func "$src")"
+
+      if [ -z "$target_func" ]; then
+        echo "    [!] Fonction cible non détectée dans $src, utilisation de main"
+        target_func="main"
+      fi
+
+      echo "    [+] Sample : $base"
+      echo "    [+] Fonction détectée : $target_func"
+
+      wrap="outputs/tmp/${base}_${combo_name}_wrap.c"
+      obfc="${outdir}/${base}_obf.c"
+      outbin="${outdir}/${base}_obf"
+
+      {
+        echo "/* Auto-generated wrapper for Tigress combo */"
+        echo "#include <stdio.h>"
+        echo "#include <stdlib.h>"
+        echo "#include <stdint.h>"
+        echo "#include <string.h>"
+        echo "#include <time.h>"
+        echo "#include <pthread.h>"
+        echo "#include <unistd.h>"
+        echo
+        cat "$src"
+      } > "$wrap"
+
+      TIGRESS_OPTS="--Environment=x86_64:Linux:Gcc --Seed=0"
+      TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitEntropy"
+      TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitOpaque --Functions=main --InitOpaqueStructs=list,array --InitOpaqueCount=2 --InitOpaqueSize=30"
+
+      for transform in $combo_transforms; do
+        TIGRESS_OPTS="$TIGRESS_OPTS $(build_tigress_options_for_transform "$transform" "$target_func")"
+      done
+
+      docker run --rm -v "$PWD:/work" -w /work psec/tigress:4 \
+        bash -lc "tigress $TIGRESS_OPTS --out=${obfc} ${wrap} && gcc -O0 -g ${obfc} -o ${outbin}"
+
+      generate_asm_and_prompt "$src" "tigress_combo" "$combo_name" "$category" "$outbin" "$target_func"
     done
   done
 done

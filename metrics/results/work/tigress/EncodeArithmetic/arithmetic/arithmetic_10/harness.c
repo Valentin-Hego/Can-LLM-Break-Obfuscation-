@@ -629,13 +629,18 @@ int main(void) {
     int passed = 0;
 
     for (int i = 0; i < total; i++) {
-        int a = original_f(tests[i][0], tests[i][1], tests[i][2]);
-        int b = llm_f(tests[i][0], tests[i][1], tests[i][2]);
+        int original_result = original_f(tests[i][0], tests[i][1], tests[i][2]);
+        int llm_result = llm_f(tests[i][0], tests[i][1], tests[i][2]);
 
-        if (a == b) {
+        if (original_result == llm_result) {
             passed++;
         } else {
-            printf("FAIL test=%d original=%d llm=%d\n", i, a, b);
+            printf(
+                "FAIL test=%d original=%d llm=%d\n",
+                i,
+                original_result,
+                llm_result
+            );
         }
     }
 

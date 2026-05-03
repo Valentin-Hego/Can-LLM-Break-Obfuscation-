@@ -1,50 +1,59 @@
-
 import pandas as pd
 from weasyprint import HTML
 
-# Fichier d'entrée
 csv_file = "results/results.csv"
 pdf_file = "tableau.pdf"
 
-# Lire le CSV
 df = pd.read_csv(csv_file)
-
-# Limiter éventuellement le nombre de lignes affichées
-# df = df.head(50)
 
 html = f"""
 <html>
 <head>
     <meta charset="utf-8">
     <style>
+        @page {{
+            size: A4 landscape;
+            margin: 10mm;
+        }}
+
         body {{
             font-family: Arial, sans-serif;
-            margin: 30px;
+            margin: 0;
         }}
+
         h1 {{
             text-align: center;
             color: #222;
+            font-size: 16px;
         }}
+
         table {{
             border-collapse: collapse;
             width: 100%;
-            font-size: 12px;
+            table-layout: fixed;
+            font-size: 7px;
         }}
+
         th, td {{
             border: 1px solid #999;
-            padding: 8px;
+            padding: 3px;
             text-align: left;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
         }}
+
         th {{
             background-color: #f2f2f2;
         }}
+
         tr:nth-child(even) {{
             background-color: #fafafa;
         }}
     </style>
 </head>
 <body>
-    <h1>Tableau CSV</h1>
+    <h1>Evaluation Results with LLM</h1>
     {df.to_html(index=False)}
 </body>
 </html>
