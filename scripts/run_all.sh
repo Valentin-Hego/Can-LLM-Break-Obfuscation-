@@ -185,6 +185,35 @@ build_tigress_options_for_transform() {
   esac
 }
 
+make_tigress_wrapper() {
+  local src="$1"
+  local wrap="$2"
+  local label="$3"
+
+  {
+    echo "/* Auto-generated wrapper for Tigress ${label} */"
+    echo "#include <stdio.h>"
+    echo "#include <stdlib.h>"
+    echo "#include <stdint.h>"
+    echo "#include <string.h>"
+    echo "#include <time.h>"
+    echo "#include <pthread.h>"
+    echo "#include <unistd.h>"
+    echo
+    cat "$src"
+  } > "$wrap"
+}
+
+run_tigress_build() {
+  local opts="$1"
+  local obfc="$2"
+  local wrap="$3"
+  local outbin="$4"
+
+  docker run --rm -v "$PWD:/work" -w /work psec/tigress:4 \
+    bash -lc "tigress $opts --out=${obfc} ${wrap} && gcc -O0 -g ${obfc} -o ${outbin}"
+}
+
 # =========================
 # Baseline
 # =========================
@@ -218,7 +247,6 @@ for transform in "${TRANSFORMS[@]}"; do
       [ -e "$src" ] || continue
 
       base="$(basename "$src" .c)"
-
       target_func="$(detect_target_func "$src")"
 
       if [ -z "$target_func" ]; then
@@ -233,28 +261,19 @@ for transform in "${TRANSFORMS[@]}"; do
       obfc="${outdir}/${base}_obf.c"
       outbin="${outdir}/${base}_obf"
 
-      {
-        echo "/* Auto-generated wrapper for Tigress */"
-        echo "#include <stdio.h>"
-        echo "#include <stdlib.h>"
-        echo "#include <stdint.h>"
-        echo "#include <string.h>"
-        echo "#include <time.h>"
-        echo "#include <pthread.h>"
-        echo "#include <unistd.h>"
-        echo
-        cat "$src"
-      } > "$wrap"
+      make_tigress_wrapper "$src" "$wrap" "$transform"
 
       TIGRESS_OPTS="--Environment=x86_64:Linux:Gcc --Seed=0"
       TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitEntropy"
       TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitOpaque --Functions=main --InitOpaqueStructs=list,array --InitOpaqueCount=2 --InitOpaqueSize=30"
       TIGRESS_OPTS="$TIGRESS_OPTS $(build_tigress_options_for_transform "$transform" "$target_func")"
 
-      docker run --rm -v "$PWD:/work" -w /work psec/tigress:4 \
-        bash -lc "tigress $TIGRESS_OPTS --out=${obfc} ${wrap} && gcc -O0 -g ${obfc} -o ${outbin}"
-
-      generate_asm_and_prompt "$src" "tigress" "$transform" "$category" "$outbin" "$target_func"
+      if run_tigress_build "$TIGRESS_OPTS" "$obfc" "$wrap" "$outbin"; then
+        generate_asm_and_prompt "$src" "tigress" "$transform" "$category" "$outbin" "$target_func"
+      else
+        echo "    [!] Échec Tigress transform=${transform} sample=${base}, passage au suivant"
+        continue
+      fi
     done
   done
 done
@@ -267,10 +286,14 @@ echo "[+] Tigress (v4) - Combinaisons de transforms"
 
 # Format :
 # nom_combo|suite_de_transforms
+#
+# Note :
+# On évite Virtualize puis Split, car cette combinaison peut générer
+# des conflits de types dans le C produit par Tigress.
 TIGRESS_COMBOS=(
   "flatten_literals_arith|Flatten EncodeLiterals EncodeArithmetic"
   "flatten_split_arith|Flatten Split EncodeArithmetic"
-  "virtualize_literals_split|Virtualize EncodeLiterals Split"
+  "split_virtualize_literals|Split Virtualize EncodeLiterals"
 )
 
 for combo_entry in "${TIGRESS_COMBOS[@]}"; do
@@ -288,7 +311,6 @@ for combo_entry in "${TIGRESS_COMBOS[@]}"; do
       [ -e "$src" ] || continue
 
       base="$(basename "$src" .c)"
-
       target_func="$(detect_target_func "$src")"
 
       if [ -z "$target_func" ]; then
@@ -303,18 +325,7 @@ for combo_entry in "${TIGRESS_COMBOS[@]}"; do
       obfc="${outdir}/${base}_obf.c"
       outbin="${outdir}/${base}_obf"
 
-      {
-        echo "/* Auto-generated wrapper for Tigress combo */"
-        echo "#include <stdio.h>"
-        echo "#include <stdlib.h>"
-        echo "#include <stdint.h>"
-        echo "#include <string.h>"
-        echo "#include <time.h>"
-        echo "#include <pthread.h>"
-        echo "#include <unistd.h>"
-        echo
-        cat "$src"
-      } > "$wrap"
+      make_tigress_wrapper "$src" "$wrap" "$combo_name"
 
       TIGRESS_OPTS="--Environment=x86_64:Linux:Gcc --Seed=0"
       TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitEntropy"
@@ -324,10 +335,12 @@ for combo_entry in "${TIGRESS_COMBOS[@]}"; do
         TIGRESS_OPTS="$TIGRESS_OPTS $(build_tigress_options_for_transform "$transform" "$target_func")"
       done
 
-      docker run --rm -v "$PWD:/work" -w /work psec/tigress:4 \
-        bash -lc "tigress $TIGRESS_OPTS --out=${obfc} ${wrap} && gcc -O0 -g ${obfc} -o ${outbin}"
-
-      generate_asm_and_prompt "$src" "tigress_combo" "$combo_name" "$category" "$outbin" "$target_func"
+      if run_tigress_build "$TIGRESS_OPTS" "$obfc" "$wrap" "$outbin"; then
+        generate_asm_and_prompt "$src" "tigress_combo" "$combo_name" "$category" "$outbin" "$target_func"
+      else
+        echo "    [!] Échec Tigress combo=${combo_name} sample=${base}, passage au suivant"
+        continue
+      fi
     done
   done
 done
@@ -346,7 +359,6 @@ if [ "$RUN_MOVFUSCATOR" = "1" ]; then
 
     base="$(basename "$src" .c)"
     category="${base%%_*}"
-
     target_func="$(detect_target_func "$src")"
 
     if [ -z "$target_func" ]; then
@@ -359,12 +371,17 @@ if [ "$RUN_MOVFUSCATOR" = "1" ]; then
 
     outbin="outputs/movfuscator/${base}_mov"
 
-    docker run --rm \
+    if docker run --rm \
       -v "$PWD:/work" -w /work \
       psec/movfuscator:1 \
-      bash -lc "/opt/movfuscator/build/movcc '$src' -o '$outbin' -Wl'$SOFTFLOAT'"
+      bash -lc "/opt/movfuscator/build/movcc '$src' -o '$outbin' -Wl'$SOFTFLOAT'"; then
 
-    generate_asm_and_prompt "$src" "movfuscator" "movfuscator" "$category" "$outbin" "$target_func"
+      generate_asm_and_prompt "$src" "movfuscator" "movfuscator" "$category" "$outbin" "$target_func"
+
+    else
+      echo "    [!] Échec Movfuscator sample=${base}, passage au suivant"
+      continue
+    fi
   done
 else
   echo "[+] Movfuscator désactivé par défaut"
