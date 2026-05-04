@@ -7,11 +7,11 @@ set -euo pipefail
 
 ASM_SYNTAX="${ASM_SYNTAX:-att}"           # att ou intel
 RUN_MOVFUSCATOR="${RUN_MOVFUSCATOR:-0}"  # 0 par défaut
-MAX_ASM_LINES="${MAX_ASM_LINES:-800}"    # utilisé seulement pour le prompt en fallback
-MAX_ASM_BYTES="${MAX_ASM_BYTES:-120000}" # utilisé seulement pour le prompt
+MAX_ASM_LINES="${MAX_ASM_LINES:-1200}"   # fallback prompt
+MAX_ASM_BYTES="${MAX_ASM_BYTES:-180000}" # taille max ASM dans prompt
 
 rm -rf outputs
-mkdir -p outputs/{baseline,tigress,tigress_combo,movfuscator,tmp,asm,prompts}
+mkdir -p outputs/{baseline,tigress_hard,movfuscator,tmp,asm,prompts,logs}
 
 cleanup_archive() {
   if [ -d outputs ]; then
@@ -32,6 +32,18 @@ detect_target_func() {
     | head -n 1 \
     | sed -E 's/^[[:space:]]*(int|long|short|char|void|float|double|unsigned|signed)[[:space:]\*]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*\(.*/\2/' \
     || true
+}
+
+detect_category() {
+  local src="$1"
+  local base
+  base="$(basename "$src" .c)"
+
+  if [[ "$base" == *_* ]]; then
+    echo "${base%%_*}"
+  else
+    echo "generic"
+  fi
 }
 
 objdump_full() {
@@ -111,10 +123,7 @@ generate_asm_and_prompt() {
   echo "    [+] Syntaxe ASM : ${ASM_SYNTAX}"
   echo "    [+] Fonction cible pour prompt : ${target_func}"
 
-  # Le fichier outputs/asm est TOUJOURS le désassemblage complet du binaire.
   objdump_full "$bin" "$asm_file"
-
-  # Pour le prompt uniquement, on tente d'extraire la fonction cible.
   objdump_function "$bin" "$target_func" "$prompt_func_asm"
 
   if ! grep -q "<${target_func}>" "$prompt_func_asm" 2>/dev/null; then
@@ -209,9 +218,11 @@ run_tigress_build() {
   local obfc="$2"
   local wrap="$3"
   local outbin="$4"
+  local logfile="$5"
 
   docker run --rm -v "$PWD:/work" -w /work psec/tigress:4 \
-    bash -lc "tigress $opts --out=${obfc} ${wrap} && gcc -O0 -g ${obfc} -o ${outbin}"
+    bash -lc "tigress $opts --out=${obfc} ${wrap} && gcc -O0 -g ${obfc} -o ${outbin}" \
+    > "$logfile" 2>&1
 }
 
 # =========================
@@ -224,124 +235,93 @@ for src in samples/*.c; do
   [ -e "$src" ] || { echo "No .c files in samples/"; exit 1; }
 
   base="$(basename "$src" .c)"
-  gcc -O0 -g "$src" -o "outputs/baseline/${base}"
+
+  echo "  [+] Compilation baseline : $base"
+
+  if gcc -O0 -g "$src" -o "outputs/baseline/${base}"; then
+    :
+  else
+    echo "  [!] Échec compilation baseline : $base"
+    continue
+  fi
 done
 
 # =========================
-# Tigress - Transforms unitaires
+# Tigress - Obfuscations dures
 # =========================
 
-echo "[+] Tigress (v4) - Test des Transforms un à un par catégorie"
-
-TRANSFORMS=("Flatten" "EncodeLiterals" "EncodeArithmetic" "Split" "Virtualize")
-CATEGORIES=("arithmetic" "function_call" "loops")
-
-for transform in "${TRANSFORMS[@]}"; do
-  echo "  -> Application du Transform : $transform"
-
-  for category in "${CATEGORIES[@]}"; do
-    outdir="outputs/tigress/${transform}/${category}"
-    mkdir -p "$outdir"
-
-    for src in samples/${category}_*.c; do
-      [ -e "$src" ] || continue
-
-      base="$(basename "$src" .c)"
-      target_func="$(detect_target_func "$src")"
-
-      if [ -z "$target_func" ]; then
-        echo "    [!] Fonction cible non détectée dans $src, utilisation de main"
-        target_func="main"
-      fi
-
-      echo "    [+] Sample : $base"
-      echo "    [+] Fonction détectée : $target_func"
-
-      wrap="outputs/tmp/${base}_${transform}_wrap.c"
-      obfc="${outdir}/${base}_obf.c"
-      outbin="${outdir}/${base}_obf"
-
-      make_tigress_wrapper "$src" "$wrap" "$transform"
-
-      TIGRESS_OPTS="--Environment=x86_64:Linux:Gcc --Seed=0"
-      TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitEntropy"
-      TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitOpaque --Functions=main --InitOpaqueStructs=list,array --InitOpaqueCount=2 --InitOpaqueSize=30"
-      TIGRESS_OPTS="$TIGRESS_OPTS $(build_tigress_options_for_transform "$transform" "$target_func")"
-
-      if run_tigress_build "$TIGRESS_OPTS" "$obfc" "$wrap" "$outbin"; then
-        generate_asm_and_prompt "$src" "tigress" "$transform" "$category" "$outbin" "$target_func"
-      else
-        echo "    [!] Échec Tigress transform=${transform} sample=${base}, passage au suivant"
-        continue
-      fi
-    done
-  done
-done
-
-# =========================
-# Tigress - Combinaisons de plusieurs transforms
-# =========================
-
-echo "[+] Tigress (v4) - Combinaisons de transforms"
+echo "[+] Tigress (v4) - Obfuscations agressives"
 
 # Format :
 # nom_combo|suite_de_transforms
 #
-# Note :
-# On évite Virtualize puis Split, car cette combinaison peut générer
-# des conflits de types dans le C produit par Tigress.
-TIGRESS_COMBOS=(
-  "flatten_literals_arith|Flatten EncodeLiterals EncodeArithmetic"
-  "flatten_split_arith|Flatten Split EncodeArithmetic"
-  "split_virtualize_literals|Split Virtualize EncodeLiterals"
+# Principe :
+# - Split avant Virtualize est plus stable que Virtualize puis Split.
+# - Virtualize est volontairement placé en fin sur les combos les plus durs.
+# - Certains combos peuvent échouer selon le code source : le script continue.
+TIGRESS_HARD_COMBOS=(
+  "hard_flatten_literals_arith|Flatten EncodeLiterals EncodeArithmetic"
+  "hard_split_flatten_literals_arith|Split Flatten EncodeLiterals EncodeArithmetic"
+  "hard_split_arith_literals_flatten|Split EncodeArithmetic EncodeLiterals Flatten"
+  "hard_flatten_split_arith_literals|Flatten Split EncodeArithmetic EncodeLiterals"
+  "hard_split_flatten_virtualize|Split Flatten Virtualize"
+  "hard_split_arith_literals_virtualize|Split EncodeArithmetic EncodeLiterals Virtualize"
+  "hard_flatten_arith_literals_virtualize|Flatten EncodeArithmetic EncodeLiterals Virtualize"
+  "max_split_flatten_arith_literals_virtualize|Split Flatten EncodeArithmetic EncodeLiterals Virtualize"
 )
 
-for combo_entry in "${TIGRESS_COMBOS[@]}"; do
+for combo_entry in "${TIGRESS_HARD_COMBOS[@]}"; do
   combo_name="${combo_entry%%|*}"
   combo_transforms="${combo_entry#*|}"
 
-  echo "  -> Application du combo : $combo_name"
+  echo "  -> Application du combo dur : $combo_name"
   echo "     Transforms : $combo_transforms"
 
-  for category in "${CATEGORIES[@]}"; do
-    outdir="outputs/tigress_combo/${combo_name}/${category}"
+  for src in samples/*.c; do
+    [ -e "$src" ] || continue
+
+    base="$(basename "$src" .c)"
+    category="$(detect_category "$src")"
+    target_func="$(detect_target_func "$src")"
+
+    if [ -z "$target_func" ]; then
+      echo "    [!] Fonction cible non détectée dans $src, utilisation de main"
+      target_func="main"
+    fi
+
+    echo "    [+] Sample : $base"
+    echo "    [+] Catégorie : $category"
+    echo "    [+] Fonction détectée : $target_func"
+
+    outdir="outputs/tigress_hard/${combo_name}/${category}"
     mkdir -p "$outdir"
 
-    for src in samples/${category}_*.c; do
-      [ -e "$src" ] || continue
+    wrap="outputs/tmp/${base}_${combo_name}_wrap.c"
+    obfc="${outdir}/${base}_obf.c"
+    outbin="${outdir}/${base}_obf"
+    logfile="outputs/logs/${base}_${combo_name}.log"
 
-      base="$(basename "$src" .c)"
-      target_func="$(detect_target_func "$src")"
+    make_tigress_wrapper "$src" "$wrap" "$combo_name"
 
-      if [ -z "$target_func" ]; then
-        echo "    [!] Fonction cible non détectée dans $src, utilisation de main"
-        target_func="main"
-      fi
+    TIGRESS_OPTS="--Environment=x86_64:Linux:Gcc --Seed=0"
 
-      echo "    [+] Sample : $base"
-      echo "    [+] Fonction détectée : $target_func"
+    # Initialisation commune pour opaque predicates / entropie.
+    TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitEntropy"
+    TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitOpaque --Functions=main --InitOpaqueStructs=list,array --InitOpaqueCount=4 --InitOpaqueSize=60"
 
-      wrap="outputs/tmp/${base}_${combo_name}_wrap.c"
-      obfc="${outdir}/${base}_obf.c"
-      outbin="${outdir}/${base}_obf"
-
-      make_tigress_wrapper "$src" "$wrap" "$combo_name"
-
-      TIGRESS_OPTS="--Environment=x86_64:Linux:Gcc --Seed=0"
-      TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitEntropy"
-      TIGRESS_OPTS="$TIGRESS_OPTS --Transform=InitOpaque --Functions=main --InitOpaqueStructs=list,array --InitOpaqueCount=2 --InitOpaqueSize=30"
-
-      for transform in $combo_transforms; do
-        TIGRESS_OPTS="$TIGRESS_OPTS $(build_tigress_options_for_transform "$transform" "$target_func")"
-      done
-
-      if run_tigress_build "$TIGRESS_OPTS" "$obfc" "$wrap" "$outbin"; then
-        generate_asm_and_prompt "$src" "tigress_combo" "$combo_name" "$category" "$outbin" "$target_func"
-      else
-        echo "    [!] Échec Tigress combo=${combo_name} sample=${base}, passage au suivant"
-        continue
-      fi
+    # Chaîne d'obfuscation dure.
+    for transform in $combo_transforms; do
+      TIGRESS_OPTS="$TIGRESS_OPTS $(build_tigress_options_for_transform "$transform" "$target_func")"
     done
+
+    if run_tigress_build "$TIGRESS_OPTS" "$obfc" "$wrap" "$outbin" "$logfile"; then
+      echo "    [+] Build Tigress OK : $combo_name / $base"
+      generate_asm_and_prompt "$src" "tigress_hard" "$combo_name" "$category" "$outbin" "$target_func"
+    else
+      echo "    [!] Échec Tigress combo=${combo_name} sample=${base}, passage au suivant"
+      echo "    [!] Log : $logfile"
+      continue
+    fi
   done
 done
 
@@ -358,7 +338,7 @@ if [ "$RUN_MOVFUSCATOR" = "1" ]; then
     [ -e "$src" ] || { echo "No .c files in samples/"; break; }
 
     base="$(basename "$src" .c)"
-    category="${base%%_*}"
+    category="$(detect_category "$src")"
     target_func="$(detect_target_func "$src")"
 
     if [ -z "$target_func" ]; then
@@ -367,19 +347,23 @@ if [ "$RUN_MOVFUSCATOR" = "1" ]; then
     fi
 
     echo "    [+] Sample : $base"
+    echo "    [+] Catégorie : $category"
     echo "    [+] Fonction détectée : $target_func"
 
     outbin="outputs/movfuscator/${base}_mov"
+    logfile="outputs/logs/${base}_movfuscator.log"
 
     if docker run --rm \
       -v "$PWD:/work" -w /work \
       psec/movfuscator:1 \
-      bash -lc "/opt/movfuscator/build/movcc '$src' -o '$outbin' -Wl'$SOFTFLOAT'"; then
+      bash -lc "/opt/movfuscator/build/movcc '$src' -o '$outbin' -Wl'$SOFTFLOAT'" \
+      > "$logfile" 2>&1; then
 
       generate_asm_and_prompt "$src" "movfuscator" "movfuscator" "$category" "$outbin" "$target_func"
 
     else
       echo "    [!] Échec Movfuscator sample=${base}, passage au suivant"
+      echo "    [!] Log : $logfile"
       continue
     fi
   done
@@ -400,6 +384,9 @@ echo "[+] Compression des artefacts"
 tar -czf outputs.tar.gz outputs/
 
 echo "[+] Done"
+echo "[+] Binaires baseline : outputs/baseline/"
+echo "[+] Binaires Tigress hard : outputs/tigress_hard/"
 echo "[+] ASM complets générés dans : outputs/asm/"
 echo "[+] Prompts générés dans : outputs/prompts/"
+echo "[+] Logs générés dans : outputs/logs/"
 echo "[+] Archive : outputs.tar.gz"
