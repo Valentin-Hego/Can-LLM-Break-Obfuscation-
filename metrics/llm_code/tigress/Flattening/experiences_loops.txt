@@ -1,0 +1,79 @@
+Loop experiments
+
+Obfuscator: Tigress
+Technique: Flatten (check script for exact technique)
+LLM: Gemini Pro + custom binary analysis pipeline
+
+
+loops_01_obf
+
+AI recovered:
+void f(int n){
+    for(int i=1;i<=n;i++){
+        printf("%d ",i);
+    }
+    putchar('\n');
+}
+
+int main(){
+    f(5);
+    return 0;
+}
+
+Observation:
+Recovery looks correct.
+
+
+loops_05_obf
+
+AI recovered:
+int f(int a,int b){
+    int r=0;
+
+    for(int i=0;i<b;i++){
+        r=r+a;
+    }
+
+    return r;
+}
+
+int main(){
+    int result=f(4,3);
+    printf("%d\n",result);
+    return 0;
+}
+
+Observation:
+Recovery looks correct.
+Function logic and parameters were recovered.
+
+
+loops_15_obf
+
+AI recovered:
+int f(int a,int b){
+    int r=0;
+
+    for(int i=0;i<b;i++){
+        r=r+a;
+    }
+
+    return r;
+}
+
+int main(){
+    int result=f(a,b);   // arguments unknown
+    printf("%d\n",result);
+    return 0;
+}
+
+Observation:
+Function logic was recovered but arguments were not.
+
+Note:
+Analysis time became much longer (~10 min).
+Possible reasons:
+- higher obfuscation complexity
+- context/token limit issues
+- more difficult control-flow recovery
+- internet connection ?
