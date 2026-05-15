@@ -1,4 +1,0 @@
-/home/valentin/Documents/psec-obf/metrics/results/work/tigress/EncodeArithmetic/arithmetic/arithmetic_02/harness.c: In function ‘main’:
-/home/valentin/Documents/psec-obf/metrics/results/work/tigress/EncodeArithmetic/arithmetic/arithmetic_02/harness.c:615:26: error: implicit declaration of function ‘llm_f’ [-Wimplicit-function-declaration]
-  615 |         int llm_result = llm_f(tests[i][0], tests[i][1]);
-      |                          ^~~~~
