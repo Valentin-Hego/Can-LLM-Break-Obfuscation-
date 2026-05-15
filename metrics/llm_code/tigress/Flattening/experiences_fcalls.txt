@@ -1,0 +1,95 @@
+Function call experiments
+
+Obfuscator: Tigress
+Technique: Flatten (check script for exact technique)
+LLM: Gemini Pro + custom binary analysis pipeline
+
+function_call_01_obf
+
+AI recovered:
+void f(){
+    puts("Hello World");
+}
+
+int main(){
+    f();
+    return 0;
+}
+
+Observation:
+String recovery failed. The AI invented a string instead of keeping it unknown.
+
+
+function_call_05_obf
+
+First AI result:
+void f(int n){
+    printf("%d\n",n);
+}
+
+int main(){
+    f(/* unknown */);
+}
+
+After more information:
+void f(int n){
+}
+
+int main(){
+    int x=5;
+    f(x);
+    printf("%d\n",x);
+}
+
+Observation:
+Token limits become a problem with complete listings.
+
+
+function_call_10_obf
+
+AI recovered:
+int f(char *str){
+    return strlen(str);
+}
+
+int main(){
+    int result=f("Hello");
+    printf("%d\n",result);
+}
+
+Observation:
+Not identical code but the logic is correct.
+
+
+function_call_15_obf
+
+AI recovered:
+int f(int n){
+    if(n<=1)
+        return n;
+
+    return n*f(n-1);
+}
+
+Observation:
+Logic mostly correct.
+
+Level 15 is more aggressive and some control-flow blocks become harder to recover.
+
+
+function_call_20_obf
+
+AI recovered:
+int f(int a,int b){
+    return a+b;
+}
+
+int g(int a,int b){
+    return a-b;
+}
+
+Observation:
+Function roles were recovered correctly but parameters and implementation details were not.
+
+Observation:
+Level 20 adds another indirection layer with dynamically initialized function pointers.
