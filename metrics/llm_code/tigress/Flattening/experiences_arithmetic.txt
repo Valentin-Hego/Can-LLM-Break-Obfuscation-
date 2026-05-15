@@ -1,0 +1,141 @@
+Arithmetic experiments
+
+Obfuscator: Tigress
+Technique: Flatten (check script for exact technique)
+LLM: Gemini Pro + custom binary analysis pipeline
+
+arithmetic_01_obf
+
+Human recovered:
+int f(int a, int b){
+    return a+b;
+}
+
+int main(){
+    printf(f(5,3));
+    return 0;
+}
+
+Observation:
+The obfuscator created 3 possible branches. All branches call f(), so checking f() makes recovery easy.
+
+AI recovered:
+int f(int a, int b) {
+    return a + b;
+}
+
+int main() {
+    int result = 0;
+
+    for (int i=0;i<4;i++) {
+        result = f(result,i);
+    }
+
+    printf("%d\n", result);
+    return result;
+}
+
+Note:
+The AI tried to infer missing information instead of fully recovering the program.
+
+
+arithmetic_05_obf
+
+Human recovered:
+int f(int a,int b){
+    return a%b;
+}
+
+int main(){
+    f(10,3);
+    return 0;
+}
+
+Observation:
+3 branches:
+- one unreachable
+- one does nothing
+- one calls f()
+
+AI recovered:
+int f(int a,int b){
+    return a%b;
+}
+
+int main(){
+    return f(argc,argc);
+}
+
+Note:
+The printf was missed.
+
+
+arithmetic_10_obf
+
+Human recovered:
+int f(int a,int b,int c){
+    return b*b + a*c*-4;
+}
+
+int main(){
+    printf(f(2,5,-3));
+    return 0;
+}
+
+First AI result:
+int f(int a,int b,int c){
+    return b*b + a*c*-4;
+}
+
+int main(){
+    return f(argc,argc,argc);
+}
+
+Observation:
+Function logic was recovered but not the original parameters.
+
+After more analysis:
+int main(){
+    printf("%d\n",f(2,5,-3));
+    return 0;
+}
+
+Observation:
+The AI often stops when the logic seems correct, even if the exact output is still wrong.
+
+
+arithmetic_15_obf
+
+Human recovered:
+int f(int n){
+    return 1<<n;
+}
+
+AI recovered:
+int f(int a,int b){
+    return a%b;
+}
+
+Result:
+Wrong reconstruction.
+
+
+arithmetic_20_obf
+
+Human recovered:
+Recovery failed.
+
+AI recovered:
+int f(int n,int pos){
+    return n | (1<<pos);
+}
+
+int main(){
+    printf("%d\n",f(5,3));
+}
+
+Observation:
+Parameters were guessed and not recovered.
+
+General note:
+Always include the file name in prompts. Wrong references between files can happen.
