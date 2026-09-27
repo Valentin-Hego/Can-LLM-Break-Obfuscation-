@@ -1,93 +1,51 @@
-# PSEC
+# Can LLM Break Obfuscation?
 
+Projet de recherche mené dans le cadre du M1 SLM à l'Université de Rennes (ISTIC), sous la direction du **Pr. Mohamed Sabt**.
 
+---
 
-## Getting started
+###  Le constat de départ
+En 2026, l'étude NDSS de Basque et al. a démontré l'efficacité du binôme humain-LLM pour la rétro-ingénierie. Cependant, leurs travaux laissaient une zone d'ombre majeure : le comportement de ces modèles face à du code volontairement obfusqué (flatte de flux de contrôle, virtualisation, encodage arithmétique).
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Les outils de désobfuscation traditionnels fonctionnent très bien sur des motifs précis, mais s'effondrent dès que plusieurs techniques sont combinées. Notre hypothèse était la suivante : **un modèle de langage, de par sa compréhension sémantique du code, peut-il dépasser ces limites et restituer la logique d'un binaire obfusqué ?**
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+---
 
-## Add your files
+###  L'approche expérimentale
+Pour tester cette hypothèse sans biais, nous avons mis en place la méthodologie suivante :
 
-* [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+- **Un dataset varié :** Ecriture de binaires C couvrant plusieurs structures (opérations arithmétiques, boucles, appels de fonctions) obfusquées via **Tigress**, **Movfuscator** (code exécuté quasi exclusivement avec des instructions `mov`) et **Kovid** (passes LLVM/GCC).
+- **Évaluation en boîte noire :** Le code décompilé via **Ghidra** a été soumis à **Gemini 3.1 Pro** avec un prompt minimaliste, sans lui indiquer l'outil d'obfuscation utilisé ni le comportement attendu.
+- **Mesure objective :** Remplacement de l'évaluation humaine subjective par la métrique **CodeBERTScore**, en établissant un seuil d'utilité opérationnelle à **0,70**.
+- **Cas réel (Go Malware) :** Validation de la méthode sur un binaire de malware écrit en Go (~12 000 fonctions) dont la table `pcintab` avait été altérée pour bloquer l'analyse.
 
-```
-cd existing_repo
-git remote add origin https://gitlab2.istic.univ-rennes1.fr/vboue/psec.git
-git branch -M main
-git push -uf origin main
-```
+---
 
-## Integrate with your tools
+### 📊 Ce que nous avons découvert
+Les résultats montrent que les LLM constituent un **accélérateur remarquable pour l'analyse**, mais pas une solution miracle.
 
-* [Set up project integrations](https://gitlab2.istic.univ-rennes1.fr/vboue/psec/-/settings/integrations)
+1. **L'IA face aux obfuscateurs :** Le modèle a obtenu de très bons résultats sur Movfuscator (scores entre 0,83 et 0,90) et Kovid (jusqu'à 0,86). En revanche, **Tigress s'est imposé comme le plus résistant** : la combinaison de ses cinq transformations a fait chuter la compréhension du LLM autour de 0,76.
+2. **L'apport sur le cas réel :** Sur le malware Go, l'IA a permis d'accélérer la réparation des scripts Ghidra obsolètes, d'analyser la structure altérée et d'isoler rapidement les phases de chiffrement ainsi que les communications C2.
+3. **Les limites observées :** L'illusion de confiance (hallucinations sur du code très dense), la perte de précision au fur et à mesure que la complexité augmente, et la résistance des empilements d'obfuscations complexes.
 
-## Collaborate with your team
+> **En résumé :** L'IA ne remplace pas l'expert en reverse engineering, mais elle peut drastiquement l'assister sur les phases les plus chronophages de l'analyse.
 
-* [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+---
 
-## Test and Deploy
+### 🎤 Restitution & Présentation
+Les résultats et la méthodologie de ce projet ont été présentés lors de la journée d'études **« AI and Cybersecurity »** organisée par le Cluster **SequoIA**.
 
-Use the built-in continuous integration in GitLab.
+---
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### 👨‍💻 Mon rôle dans le projet
+Au sein de l'équipe de 5 étudiants, je me suis particulièrement investi sur :
+- La construction et l'automatisation du pipeline de tests et d'évaluation du dataset.
+- L'obfuscation avec Tigress avec plusieurs téchniques différentes. Nous nous sommes divisé le dataset de 60 programmes en 4.
+- La désobfuscation manuel de ma partie du dataset de programes.
+- La désobfuscation avec L'IA des programmes dont j'étais responsable.
+- L'évaluation avec notre méthode de mesure de l'efficacité du LLM sur mes programmes.
+- La rédaction du rapport et la préparation de la présentation finale.
 
-***
+---
 
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+*Rapport complet de recherche disponible dans le dépôt (`Can_LLM_Break_Obfuscation.pdf`).*
